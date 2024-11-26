@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -25,6 +26,7 @@ import kotlinx.coroutines.launch
 fun KeyboardScreen() {
     var isCapsLockOn by remember { mutableStateOf(false) }
     var isNumericKeyboardOn by remember { mutableStateOf(false) } // State to track the keyboard layout (ABC vs 123)
+    var isSpecialKeyboardOn by remember { mutableStateOf(false) } // State to track the keyboard layout (numeric vs special)
 
     val alphabeticKeysMatrix = arrayOf(
         arrayOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
@@ -36,11 +38,23 @@ fun KeyboardScreen() {
     val numericKeysMatrix = arrayOf(
         arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
         arrayOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
-        arrayOf("*", "\"", "'", ":", ";", "!", "?"),   // Adjusted symbols
+        arrayOf("=\\<", "*", "\\", "'", ":", ";", "!", "?"),
         arrayOf(",", " ", ".", "Enter")
     )
 
-    val keysMatrix = if (isNumericKeyboardOn) numericKeysMatrix else alphabeticKeysMatrix
+    val specialKeysMatrix = arrayOf(
+        arrayOf("~", "`", "|", "•", "√", "π", "÷", "×", "§", "∆"),
+        arrayOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\""),
+        arrayOf("?1", "%", "©", "®", "™", "✓", "[", "]"),
+        arrayOf("<", " ", ">", "Enter")
+    )
+
+    val keysMatrix = when {
+        isSpecialKeyboardOn -> specialKeysMatrix
+        isNumericKeyboardOn -> numericKeysMatrix
+        else -> alphabeticKeysMatrix
+    }
+
 
     Column(
         modifier = Modifier
@@ -50,7 +64,7 @@ fun KeyboardScreen() {
         keysMatrix.forEachIndexed { rowIndex, row ->
             FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 56.dp) {
                 Row(Modifier) {
-                    if (rowIndex == 3) { // Change Keyboard Button stays in row 3
+                    if (rowIndex == 3 && !isSpecialKeyboardOn) { // Only show Change Keyboard button if not in special keyboard
                         ChangeKeyboardButton(
                             modifier = Modifier.weight(1f),
                             isNumericKeyboardOn = isNumericKeyboardOn,
@@ -67,6 +81,7 @@ fun KeyboardScreen() {
                     }
 
                     row.forEachIndexed { index, key ->
+                        // Skip the "AB" key in the special keys layout
                         if (key == " ") {
                             KeyboardKey(
                                 keyboardKey = key,
@@ -74,6 +89,19 @@ fun KeyboardScreen() {
                             )
                         } else if (key == "Enter") {
                             EnterKey(modifier = Modifier.weight(1f))
+                        } else if (key == "=\\<" || key == "?1") {
+                            // These special keys will toggle between numeric and special layouts
+                            KeyboardKey(
+                                keyboardKey = key,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    if (key == "=\\<") {
+                                        isSpecialKeyboardOn = !isSpecialKeyboardOn
+                                    } else if (key == "?1") {
+                                        isSpecialKeyboardOn = false
+                                    }
+                                }
+                            )
                         } else {
                             // Capitalize letters when Caps Lock is on
                             KeyboardKey(
@@ -83,7 +111,7 @@ fun KeyboardScreen() {
                         }
                     }
 
-                    if (rowIndex == 2) { // Add Remove button in the last row
+                    if (rowIndex == 2) { // Add Remove button in the last row, only in non-special layouts
                         RemoveKey(modifier = Modifier.weight(1f))
                     }
                 }
@@ -91,10 +119,7 @@ fun KeyboardScreen() {
         }
     }
 }
-
-
-
-@Composable
+    @Composable
 fun ChangeKeyboardButton(
     modifier: Modifier,
     isNumericKeyboardOn: Boolean,
@@ -128,6 +153,63 @@ fun ChangeKeyboardButton(
     }
 }
 
+@Composable
+fun KeyboardKey(
+    keyboardKey: String,
+    modifier: Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed = interactionSource.collectIsPressedAsState()
+    val ctx = LocalContext.current
+
+    Box(
+        modifier = modifier
+            .fillMaxHeight(),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Text(
+            keyboardKey,
+            Modifier
+                .fillMaxWidth()
+                .padding(2.dp)
+                .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
+                .clickable(interactionSource = interactionSource, indication = null) {
+                    onClick?.invoke() // If click action exists, invoke it
+                    if (keyboardKey != "=\\<" && keyboardKey != "?1") {
+                        // Handle typing characters
+                        (ctx as IMEService).currentInputConnection.commitText(keyboardKey, 1)
+                    }
+                }
+                .background(Color.White)
+                .padding(
+                    start = 12.dp,
+                    end = 12.dp,
+                    top = 16.dp,
+                    bottom = 16.dp
+                ),
+            maxLines = 1,  // Ensure only one line
+            overflow = TextOverflow.Ellipsis  // Handle overflow if needed
+        )
+        if (pressed.value) {
+            Text(
+                keyboardKey,
+                Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
+                    .background(Color.White)
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 16.dp,
+                        bottom = 48.dp
+                    )
+            )
+        }
+    }
+}
 
 @Composable
 fun EnterKey(modifier: Modifier) {
