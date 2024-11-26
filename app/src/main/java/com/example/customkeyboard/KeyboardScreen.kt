@@ -24,13 +24,23 @@ import kotlinx.coroutines.launch
 @Composable
 fun KeyboardScreen() {
     var isCapsLockOn by remember { mutableStateOf(false) }
-    val keysMatrix = arrayOf(
-        arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
+    var isNumericKeyboardOn by remember { mutableStateOf(false) } // State to track the keyboard layout (ABC vs 123)
+
+    val alphabeticKeysMatrix = arrayOf(
         arrayOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
         arrayOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
         arrayOf("z", "x", "c", "v", "b", "n", "m"),
         arrayOf(",", " ", ".", "Enter")
     )
+
+    val numericKeysMatrix = arrayOf(
+        arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
+        arrayOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
+        arrayOf("*", "\"", "'", ":", ";", "!", "?"),   // Adjusted symbols
+        arrayOf(",", " ", ".", "Enter")
+    )
+
+    val keysMatrix = if (isNumericKeyboardOn) numericKeysMatrix else alphabeticKeysMatrix
 
     Column(
         modifier = Modifier
@@ -40,33 +50,40 @@ fun KeyboardScreen() {
         keysMatrix.forEachIndexed { rowIndex, row ->
             FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 56.dp) {
                 Row(Modifier) {
-                    if (rowIndex == 3) { // Add Caps Lock button before 'z'
+                    if (rowIndex == 3) { // Change Keyboard Button stays in row 3
+                        ChangeKeyboardButton(
+                            modifier = Modifier.weight(1f),
+                            isNumericKeyboardOn = isNumericKeyboardOn,
+                            onClick = { isNumericKeyboardOn = !isNumericKeyboardOn }
+                        )
+                    }
+
+                    if (!isNumericKeyboardOn && rowIndex == 2) { // Only show CapsLock in alphabetic layout
                         CapsLockButton(
                             modifier = Modifier.weight(1f),
+                            isCapsLockOn = isCapsLockOn,
                             onDoubleClick = { isCapsLockOn = !isCapsLockOn }
                         )
                     }
 
                     row.forEachIndexed { index, key ->
                         if (key == " ") {
-                            // Space should take up a little more space, but not too much
                             KeyboardKey(
                                 keyboardKey = key,
-                                modifier = Modifier.weight(3.5f) // Slightly larger than other keys
+                                modifier = Modifier.weight(3.5f) // Slightly larger for space
                             )
                         } else if (key == "Enter") {
-                            // Add the Enter key on the right side of the dot
                             EnterKey(modifier = Modifier.weight(1f))
                         } else {
-                            // Other keys (comma, dot) should have equal size as the other keys
+                            // Capitalize letters when Caps Lock is on
                             KeyboardKey(
                                 keyboardKey = if (isCapsLockOn) key.uppercase() else key,
-                                modifier = Modifier.weight(1f) // Ensure comma, dot, and other keys are the same size
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
 
-                    if (rowIndex == 3) { // Add remove button in the last row
+                    if (rowIndex == 2) { // Add Remove button in the last row
                         RemoveKey(modifier = Modifier.weight(1f))
                     }
                 }
@@ -74,6 +91,43 @@ fun KeyboardScreen() {
         }
     }
 }
+
+
+
+@Composable
+fun ChangeKeyboardButton(
+    modifier: Modifier,
+    isNumericKeyboardOn: Boolean,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val ctx = LocalContext.current
+
+    Box(
+        modifier = modifier.fillMaxHeight(),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Text(
+            if (isNumericKeyboardOn) "AB" else "?1", // Toggle between the two states
+            Modifier
+                .fillMaxWidth()
+                .padding(2.dp)
+                .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(interactionSource = interactionSource, indication = null) {
+                    onClick() // Switch between alphabetic and numeric layouts
+                }
+                .background(Color.White)
+                .padding(
+                    start = 12.dp,
+                    end = 12.dp,
+                    top = 16.dp,
+                    bottom = 16.dp
+                )
+        )
+    }
+}
+
 
 @Composable
 fun EnterKey(modifier: Modifier) {
@@ -188,6 +242,7 @@ fun KeyboardKey(
 @Composable
 fun CapsLockButton(
     modifier: Modifier,
+    isCapsLockOn: Boolean,
     onDoubleClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -208,12 +263,15 @@ fun CapsLockButton(
         }
     }
 
+    // Determine the symbol to display
+    val capsLockSymbol = if (isCapsLockOn) "⬆" else "⇧"
+
     Box(
         modifier = modifier.fillMaxHeight(),
         contentAlignment = Alignment.BottomCenter
     ) {
         Text(
-            "C", // Symbol for Caps Lock
+            capsLockSymbol,
             Modifier
                 .fillMaxWidth()
                 .padding(2.dp)
@@ -239,25 +297,24 @@ fun RemoveKey(modifier: Modifier) {
     val ctx = LocalContext.current
     val isPressed = interactionSource.collectIsPressedAsState()
 
+    // Coroutine scope for handling long-press behavior
+    val scope = rememberCoroutineScope()
+    var isLongPressing by remember { mutableStateOf(false) }
+
+    // Launch effect to handle long-press deletion
     LaunchedEffect(isPressed.value) {
         if (isPressed.value) {
-            // Continuously delete when pressed
-            launch {
-                while (isPressed.value) {
+            isLongPressing = true
+            scope.launch {
+                delay(800) // Extended long-press threshold (700ms)
+                while (isLongPressing) {
                     val inputConnection = (ctx as IMEService).currentInputConnection
-                    val selectedText = inputConnection.getSelectedText(0) // Get the selected text
-
-                    if (selectedText.isNullOrEmpty()) {
-                        // If no text is selected, delete one character at the cursor
-                        inputConnection.deleteSurroundingText(1, 0)
-                    } else {
-                        // If text is selected, delete the entire selected text
-                        inputConnection.deleteSurroundingText(selectedText.length, 0)
-                    }
-
-                    delay(100) // Delay between each character removal (adjust to your preference)
+                    inputConnection.deleteSurroundingText(1, 0) // Delete one character
+                    delay(100) // Repeat delete every 100ms while pressed
                 }
             }
+        } else {
+            isLongPressing = false // Stop long-press when released
         }
     }
 
@@ -273,16 +330,9 @@ fun RemoveKey(modifier: Modifier) {
                 .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
                 .clickable(interactionSource = interactionSource, indication = null) {
+                    // Single tap: delete one character
                     val inputConnection = (ctx as IMEService).currentInputConnection
-                    val selectedText = inputConnection.getSelectedText(0) // Get the selected text
-
-                    if (selectedText.isNullOrEmpty()) {
-                        // If no text is selected, delete one character at the cursor
-                        inputConnection.deleteSurroundingText(1, 0)
-                    } else {
-                        // If text is selected, delete the entire selected text
-                        inputConnection.deleteSurroundingText(selectedText.length, 0)
-                    }
+                    inputConnection.deleteSurroundingText(1, 0)
                 }
                 .background(Color.White)
                 .padding(
