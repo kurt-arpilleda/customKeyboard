@@ -306,7 +306,7 @@ fun RemoveKey(modifier: Modifier) {
         if (isPressed.value) {
             isLongPressing = true
             scope.launch {
-                delay(800) // Extended long-press threshold (700ms)
+                delay(800) // Extended long-press threshold (800ms)
                 while (isLongPressing) {
                     val inputConnection = (ctx as IMEService).currentInputConnection
                     inputConnection.deleteSurroundingText(1, 0) // Delete one character
@@ -330,9 +330,14 @@ fun RemoveKey(modifier: Modifier) {
                 .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
                 .clickable(interactionSource = interactionSource, indication = null) {
-                    // Single tap: delete one character
                     val inputConnection = (ctx as IMEService).currentInputConnection
-                    inputConnection.deleteSurroundingText(1, 0)
+
+                    // Check if there is any selected text and delete it
+                    if (inputConnection.getSelectedText(0) != null && inputConnection.getSelectedText(0) != "") {
+                        inputConnection.commitText("", 1) // Clear selected text
+                    } else {
+                        inputConnection.deleteSurroundingText(1, 0) // Remove one character around the cursor
+                    }
                 }
                 .background(Color.White)
                 .padding(
@@ -344,3 +349,4 @@ fun RemoveKey(modifier: Modifier) {
         )
     }
 }
+
