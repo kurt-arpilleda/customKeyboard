@@ -37,11 +37,7 @@ class IMEService : LifecycleInputMethodService(),
     override val lifecycle: Lifecycle
         get() = dispatcher.lifecycle
 
-
-    //ViewModelStore Methods
     private val store = ViewModelStore()
-
-    //SaveStateRegestry Methods
 
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
 

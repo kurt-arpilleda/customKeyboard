@@ -3,7 +3,6 @@ package com.example.customkeyboard
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
 import androidx.annotation.CallSuper
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ServiceLifecycleDispatcher
 

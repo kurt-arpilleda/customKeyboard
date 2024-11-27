@@ -40,8 +40,6 @@ android {
 }
 
 dependencies {
-
-//    implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
@@ -56,16 +54,9 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-
-    implementation ("org.jetbrains.kotlin:kotlin-stdlib:2.0.0")
     implementation ("androidx.appcompat:appcompat:1.7.0")
-    implementation ("androidx.compose.ui:ui:1.7.5")
     implementation ("androidx.compose.material:material:1.7.5")
-    implementation ("androidx.compose.ui:ui-tooling:1.7.5")
-    implementation ("androidx.activity:activity-compose:1.9.3")
     implementation ("androidx.lifecycle:lifecycle-service:2.8.7")
-    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation ("com.louiscad.splitties:splitties-systemservices:3.0.0")
     implementation ("com.louiscad.splitties:splitties-views:3.0.0")
 
 

@@ -6,12 +6,24 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
@@ -24,132 +36,83 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun KeyboardScreen() {
-    var isCapsLockOn by remember { mutableStateOf(false) }
-    var isNumericKeyboardOn by remember { mutableStateOf(false) } // State to track the keyboard layout (ABC vs 123)
-    var isSpecialKeyboardOn by remember { mutableStateOf(false) } // State to track the keyboard layout (numeric vs special)
-
     val alphabeticKeysMatrix = arrayOf(
-        arrayOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
-        arrayOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
-        arrayOf("z", "x", "c", "v", "b", "n", "m"),
-        arrayOf(",", " ", ".", "Enter")
+        arrayOf("DEL", "", "BS", "7", "8", "9"),
+        arrayOf("B", "H", "M", "4", "5", "6"),
+        arrayOf("P", "R", "S", "1", "2", "3"),
+        arrayOf("","","", "0", "Enter")
     )
-
-    val numericKeysMatrix = arrayOf(
-        arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
-        arrayOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
-        arrayOf("=\\<", "*", "\\", "'", ":", ";", "!", "?"),
-        arrayOf(",", " ", ".", "Enter")
-    )
-
-    val specialKeysMatrix = arrayOf(
-        arrayOf("~", "`", "|", "•", "√", "π", "÷", "×", "§", "∆"),
-        arrayOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\""),
-        arrayOf("?1", "%", "©", "®", "™", "✓", "[", "]"),
-        arrayOf("<", " ", ">", "Enter")
-    )
-
-    val keysMatrix = when {
-        isSpecialKeyboardOn -> specialKeysMatrix
-        isNumericKeyboardOn -> numericKeysMatrix
-        else -> alphabeticKeysMatrix
-    }
-
+    val currentKeyPressed = remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
-            .background(Color(0xFFB0B0B0))
+            .background(Color(0xFFA2ABBA))
             .fillMaxWidth()
+            .padding(5.dp),
     ) {
-        keysMatrix.forEachIndexed { rowIndex, row ->
-            FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 56.dp) {
+        alphabeticKeysMatrix.forEachIndexed { rowIndex, row ->
+            FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 60.dp) {
                 Row(Modifier) {
-                    if (rowIndex == 3 && !isSpecialKeyboardOn) { // Only show Change Keyboard button if not in special keyboard
-                        ChangeKeyboardButton(
-                            modifier = Modifier.weight(1f),
-                            isNumericKeyboardOn = isNumericKeyboardOn,
-                            onClick = { isNumericKeyboardOn = !isNumericKeyboardOn }
-                        )
-                    }
-
-                    if (!isNumericKeyboardOn && rowIndex == 2) { // Only show CapsLock in alphabetic layout
-                        CapsLockButton(
-                            modifier = Modifier.weight(1f),
-                            isCapsLockOn = isCapsLockOn,
-                            onDoubleClick = { isCapsLockOn = !isCapsLockOn }
-                        )
-                    }
-
                     row.forEachIndexed { index, key ->
-                        // Skip the "AB" key in the special keys layout
-                        if (key == " ") {
-                            KeyboardKey(
-                                keyboardKey = key,
-                                modifier = Modifier.weight(3.5f) // Slightly larger for space
-                            )
-                        } else if (key == "Enter") {
-                            EnterKey(modifier = Modifier.weight(1f))
-                        } else if (key == "=\\<" || key == "?1") {
-                            // These special keys will toggle between numeric and special layouts
-                            KeyboardKey(
-                                keyboardKey = key,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    if (key == "=\\<") {
-                                        isSpecialKeyboardOn = !isSpecialKeyboardOn
-                                    } else if (key == "?1") {
-                                        isSpecialKeyboardOn = false
-                                    }
+                        if (key.isNotEmpty()) {
+                            when (key) {
+                                "DEL" -> {
+                                    RemoveKey(modifier = Modifier.weight(1f))
                                 }
-                            )
+                                "BS" -> {
+                                    KeyboardKey(
+                                        keyboardKey = key,
+                                        modifier = Modifier.weight(1f),
+                                        backgroundColor = Color(0xFFF0C243), // Custom color for BS key
+                                        onClick = {
+                                            currentKeyPressed.value = key
+                                        }
+                                    )
+                                }
+                                "B", "H", "M", "P", "R", "S" -> {
+                                    KeyboardKey(
+                                        keyboardKey = key,
+                                        modifier = Modifier.weight(1f),
+                                        backgroundColor = Color(0xFFCCE7EB), // Custom color for these keys
+                                        onClick = {
+                                            currentKeyPressed.value = key
+                                        }
+                                    )
+                                }
+                                " " -> {
+                                    KeyboardKey(
+                                        keyboardKey = key,
+                                        modifier = Modifier.weight(3.5f), // Slightly larger for space
+                                        onClick = {
+                                            currentKeyPressed.value = key
+                                        }
+                                    )
+                                }
+                                "Enter" -> {
+                                    EnterKey(modifier = Modifier.weight(2f))
+                                }
+                                else -> {
+                                    KeyboardKey(
+                                        keyboardKey = key,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = {
+                                            currentKeyPressed.value = key
+                                        }
+                                    )
+                                }
+                            }
                         } else {
-                            // Capitalize letters when Caps Lock is on
-                            KeyboardKey(
-                                keyboardKey = if (isCapsLockOn) key.uppercase() else key,
-                                modifier = Modifier.weight(1f)
+                            // Create an invisible box that still takes up space
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .alpha(0f) // Fully transparent and unclickable
                             )
                         }
-                    }
-
-                    if (rowIndex == 2) { // Add Remove button in the last row, only in non-special layouts
-                        RemoveKey(modifier = Modifier.weight(1f))
                     }
                 }
             }
         }
-    }
-}
-    @Composable
-fun ChangeKeyboardButton(
-    modifier: Modifier,
-    isNumericKeyboardOn: Boolean,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val ctx = LocalContext.current
-
-    Box(
-        modifier = modifier.fillMaxHeight(),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Text(
-            if (isNumericKeyboardOn) "AB" else "?1", // Toggle between the two states
-            Modifier
-                .fillMaxWidth()
-                .padding(2.dp)
-                .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(interactionSource = interactionSource, indication = null) {
-                    onClick() // Switch between alphabetic and numeric layouts
-                }
-                .background(Color.White)
-                .padding(
-                    start = 12.dp,
-                    end = 12.dp,
-                    top = 16.dp,
-                    bottom = 16.dp
-                )
-        )
     }
 }
 
@@ -157,6 +120,7 @@ fun ChangeKeyboardButton(
 fun KeyboardKey(
     keyboardKey: String,
     modifier: Modifier,
+    backgroundColor: Color = Color(0xFFD8E2E3), // Default color
     onClick: (() -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -173,206 +137,45 @@ fun KeyboardKey(
             Modifier
                 .fillMaxWidth()
                 .padding(2.dp)
-                .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
+                .border(1.dp, Color.Black, shape = RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp)) // Apply rounded corners
                 .clickable(interactionSource = interactionSource, indication = null) {
                     onClick?.invoke() // If click action exists, invoke it
-                    if (keyboardKey != "=\\<" && keyboardKey != "?1") {
+                    if (keyboardKey != "Enter") {
                         // Handle typing characters
                         (ctx as IMEService).currentInputConnection.commitText(keyboardKey, 1)
                     }
                 }
-                .background(Color.White)
+                .background(backgroundColor)
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 16.dp,
-                    bottom = 16.dp
+                    top = 20.dp,
+                    bottom = 19.dp
                 ),
-            maxLines = 1,  // Ensure only one line
-            overflow = TextOverflow.Ellipsis  // Handle overflow if needed
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
         )
         if (pressed.value) {
             Text(
                 keyboardKey,
                 Modifier
                     .fillMaxWidth()
-                    .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
-                    .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
-                    .background(Color.White)
+                    .border(1.dp, Color.Black, shape = RoundedCornerShape(4.dp))
+                    .clip(RoundedCornerShape(4.dp)) // Apply rounded corners
+                    .background(backgroundColor)
                     .padding(
                         start = 16.dp,
                         end = 16.dp,
                         top = 16.dp,
-                        bottom = 48.dp
-                    )
+                        bottom = 30.dp
+                    ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
             )
         }
     }
 }
-
-@Composable
-fun EnterKey(modifier: Modifier) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val ctx = LocalContext.current
-
-    Box(
-        modifier = modifier.fillMaxHeight(),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Text(
-            "⏎", // Enter key symbol
-            Modifier
-                .fillMaxWidth()
-                .padding(2.dp)
-                .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
-                .clickable(interactionSource = interactionSource, indication = null) {
-                    // Commit an Enter action when the Enter key is pressed
-                    (ctx as IMEService).currentInputConnection.commitText("\n", 1)
-
-                    // Simulate an enter key event (KEYCODE_ENTER)
-                    val inputConnection = (ctx as IMEService).currentInputConnection
-                    inputConnection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
-                    inputConnection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
-                }
-                .background(Color.White)
-                .padding(
-                    start = 12.dp,
-                    end = 12.dp,
-                    top = 16.dp,
-                    bottom = 16.dp
-                )
-        )
-    }
-}
-
-@Composable
-fun FixedHeightBox(modifier: Modifier, height: Dp, content: @Composable () -> Unit) {
-    Layout(modifier = modifier, content = content) { measurables, constraints ->
-        val placeables = measurables.map { measurable ->
-            measurable.measure(constraints)
-        }
-        val h = height.roundToPx()
-        layout(constraints.maxWidth, h) {
-            placeables.forEach { placeable ->
-                placeable.place(x = 0, y = kotlin.math.min(0, h - placeable.height))
-            }
-        }
-    }
-}
-
-@Composable
-fun KeyboardKey(
-    keyboardKey: String,
-    modifier: Modifier
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed = interactionSource.collectIsPressedAsState()
-    val ctx = LocalContext.current
-
-    Box(
-        modifier = modifier
-            .fillMaxHeight(),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Text(
-            keyboardKey,
-            Modifier
-                .fillMaxWidth()
-                .padding(2.dp)
-                .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
-                .clickable(interactionSource = interactionSource, indication = null) {
-                    if (keyboardKey == " ") {
-                        // Commit space when the space bar is pressed
-                        (ctx as IMEService).currentInputConnection.commitText(" ", 1)
-                    } else {
-                        (ctx as IMEService).currentInputConnection.commitText(
-                            keyboardKey,
-                            keyboardKey.length
-                        )
-                    }
-                }
-                .background(Color.White)
-                .padding(
-                    start = 12.dp,
-                    end = 12.dp,
-                    top = 16.dp,
-                    bottom = 16.dp
-                )
-        )
-        if (pressed.value) {
-            Text(
-                keyboardKey,
-                Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
-                    .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
-                    .background(Color.White)
-                    .padding(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = 16.dp,
-                        bottom = 48.dp
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-fun CapsLockButton(
-    modifier: Modifier,
-    isCapsLockOn: Boolean,
-    onDoubleClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val ctx = LocalContext.current
-    val isPressed = interactionSource.collectIsPressedAsState()
-
-    // Tracking the time between clicks
-    var lastClickTime by remember { mutableStateOf(0L) }
-
-    LaunchedEffect(isPressed.value) {
-        if (isPressed.value) {
-            // Handle double-click detection with a time threshold
-            val currentTime = System.currentTimeMillis()
-            if (currentTime - lastClickTime < 300) {
-                onDoubleClick() // Trigger Caps Lock toggle on double-click
-            }
-            lastClickTime = currentTime
-        }
-    }
-
-    // Determine the symbol to display
-    val capsLockSymbol = if (isCapsLockOn) "⬆" else "⇧"
-
-    Box(
-        modifier = modifier.fillMaxHeight(),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Text(
-            capsLockSymbol,
-            Modifier
-                .fillMaxWidth()
-                .padding(2.dp)
-                .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
-                .clickable(interactionSource = interactionSource, indication = null) {
-                    // Do nothing on single click as double click will be handled
-                }
-                .background(Color.White)
-                .padding(
-                    start = 12.dp,
-                    end = 12.dp,
-                    top = 16.dp,
-                    bottom = 16.dp
-                )
-        )
-    }
-}
-
 @Composable
 fun RemoveKey(modifier: Modifier) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -405,12 +208,12 @@ fun RemoveKey(modifier: Modifier) {
         contentAlignment = Alignment.BottomCenter
     ) {
         Text(
-            "←", // Symbol for removing text
+            "DEL", // Symbol for removing text
             Modifier
                 .fillMaxWidth()
                 .padding(2.dp)
-                .border(1.dp, Color.Black, shape = RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp)) // Apply rounded corners
+                .border(1.dp, Color.Black, shape = RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp)) // Apply rounded corners
                 .clickable(interactionSource = interactionSource, indication = null) {
                     val inputConnection = (ctx as IMEService).currentInputConnection
 
@@ -421,14 +224,78 @@ fun RemoveKey(modifier: Modifier) {
                         inputConnection.deleteSurroundingText(1, 0) // Remove one character around the cursor
                     }
                 }
-                .background(Color.White)
+                .background(
+                    if (isPressed.value) Color(0xFFE0BDBD) else Color(0xFFFBECDD) // Feedback color
+                )
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 16.dp,
-                    bottom = 16.dp
+                    top = 20.dp,
+                    bottom = 19.dp
                 )
         )
     }
 }
+
+@Composable
+fun EnterKey(modifier: Modifier) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val ctx = LocalContext.current
+    val isPressed = interactionSource.collectIsPressedAsState()
+
+    Box(
+        modifier = modifier.fillMaxHeight(),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Box( // Outer box for text alignment
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(2.dp)
+                .border(1.dp, Color.Black, shape = RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp)) // Apply rounded corners
+                .clickable(interactionSource = interactionSource, indication = null) {
+                    // Commit an Enter action when the Enter key is pressed
+                    (ctx as IMEService).currentInputConnection.commitText("\n", 1)
+
+                    // Simulate an enter key event (KEYCODE_ENTER)
+                    val inputConnection = (ctx as IMEService).currentInputConnection
+                    inputConnection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
+                    inputConnection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+                }
+                .background(
+                    if (isPressed.value) Color(0xFF99E6C8) else Color(0xFFC0FAE6) // Feedback color
+                ),
+            contentAlignment = Alignment.Center // Center content inside the box
+        ) {
+            Text(
+                "ENTER", // Enter key symbol
+                modifier = Modifier.padding(
+                    start = 10.dp,
+                    end = 12.dp,
+                    top = 20.dp,
+                    bottom = 19.dp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
+            )
+        }
+    }
+}
+
+
+@Composable
+fun FixedHeightBox(modifier: Modifier, height: Dp, content: @Composable () -> Unit) {
+    Layout(modifier = modifier, content = content) { measurables, constraints ->
+        val placeables = measurables.map { measurable ->
+            measurable.measure(constraints)
+        }
+        val h = height.roundToPx()
+        layout(constraints.maxWidth, h) {
+            placeables.forEach { placeable ->
+                placeable.place(x = 0, y = kotlin.math.min(0, h - placeable.height))
+            }
+        }
+    }
+}
+
 
