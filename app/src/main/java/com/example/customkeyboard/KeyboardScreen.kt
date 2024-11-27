@@ -214,11 +214,11 @@ fun RemoveKey(modifier: Modifier) {
         if (isPressed.value) {
             isLongPressing = true
             scope.launch {
-                delay(800) // Extended long-press threshold (800ms)
+                delay(900) // Extended long-press threshold (800ms)
                 while (isLongPressing) {
                     val inputConnection = (ctx as IMEService).currentInputConnection
                     inputConnection.deleteSurroundingText(1, 0) // Delete one character
-                    delay(100) // Repeat delete every 100ms while pressed
+                    delay(150) // Repeat delete every 100ms while pressed
                 }
             }
         } else {
