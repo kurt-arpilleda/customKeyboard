@@ -58,6 +58,4 @@ dependencies {
     implementation ("androidx.compose.material:material:1.7.5")
     implementation ("androidx.lifecycle:lifecycle-service:2.8.7")
     implementation ("com.louiscad.splitties:splitties-views:3.0.0")
-
-
 }
