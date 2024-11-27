@@ -40,7 +40,7 @@ fun KeyboardScreen() {
         arrayOf("DEL", "", "BS", "7", "8", "9"),
         arrayOf("B", "H", "M", "4", "5", "6"),
         arrayOf("P", "R", "S", "1", "2", "3"),
-        arrayOf("","","", "0", "Enter")
+        arrayOf("", "", "", "0", "Enter")
     )
     val currentKeyPressed = remember { mutableStateOf("") }
 
@@ -57,23 +57,16 @@ fun KeyboardScreen() {
                         if (key.isNotEmpty()) {
                             when (key) {
                                 "DEL" -> {
-                                    RemoveKey(modifier = Modifier.weight(1f))
+                                    RemoveAll(modifier = Modifier.weight(1f))
                                 }
                                 "BS" -> {
-                                    KeyboardKey(
-                                        keyboardKey = key,
-                                        modifier = Modifier.weight(1f),
-                                        backgroundColor = Color(0xFFF0C243), // Custom color for BS key
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
-                                    )
+                                    RemoveKey(modifier = Modifier.weight(1f))
                                 }
                                 "B", "H", "M", "P", "R", "S" -> {
                                     KeyboardKey(
                                         keyboardKey = key,
                                         modifier = Modifier.weight(1f),
-                                        backgroundColor = Color(0xFFCCE7EB), // Custom color for these keys
+                                        backgroundColor = Color(0xFFCCE7EB),
                                         onClick = {
                                             currentKeyPressed.value = key
                                         }
@@ -82,7 +75,7 @@ fun KeyboardScreen() {
                                 " " -> {
                                     KeyboardKey(
                                         keyboardKey = key,
-                                        modifier = Modifier.weight(3.5f), // Slightly larger for space
+                                        modifier = Modifier.weight(3.5f),
                                         onClick = {
                                             currentKeyPressed.value = key
                                         }
@@ -102,11 +95,10 @@ fun KeyboardScreen() {
                                 }
                             }
                         } else {
-                            // Create an invisible box that still takes up space
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .alpha(0f) // Fully transparent and unclickable
+                                    .alpha(0f)
                             )
                         }
                     }
@@ -115,6 +107,37 @@ fun KeyboardScreen() {
         }
     }
 }
+
+@Composable
+fun RemoveAll(modifier: Modifier) {
+    val ctx = LocalContext.current
+
+    Box(
+        modifier = modifier.fillMaxHeight(),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Text(
+            "DEL",
+            Modifier
+                .fillMaxWidth()
+                .padding(2.dp)
+                .border(1.dp, Color.Black, shape = RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp))
+                .clickable {
+                    val inputConnection = (ctx as IMEService).currentInputConnection
+                    inputConnection.deleteSurroundingText(10000, 0) // A large number to ensure deletion of all text
+                }
+                .background(Color(0xFFFBECDD))
+                .padding(
+                    start = 12.dp,
+                    end = 12.dp,
+                    top = 20.dp,
+                    bottom = 19.dp
+                )
+        )
+    }
+}
+
 
 @Composable
 fun KeyboardKey(
@@ -208,7 +231,7 @@ fun RemoveKey(modifier: Modifier) {
         contentAlignment = Alignment.BottomCenter
     ) {
         Text(
-            "DEL", // Symbol for removing text
+            "BS", // Symbol for removing text
             Modifier
                 .fillMaxWidth()
                 .padding(2.dp)
@@ -225,8 +248,9 @@ fun RemoveKey(modifier: Modifier) {
                     }
                 }
                 .background(
-                    if (isPressed.value) Color(0xFFE0BDBD) else Color(0xFFFBECDD) // Feedback color
+                    if (isPressed.value) Color(0xFFF0C243).copy(alpha = 0.5f) else Color(0xFFF0C243) // Updated with opacity adjustment
                 )
+
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
@@ -236,7 +260,6 @@ fun RemoveKey(modifier: Modifier) {
         )
     }
 }
-
 @Composable
 fun EnterKey(modifier: Modifier) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -281,7 +304,6 @@ fun EnterKey(modifier: Modifier) {
         }
     }
 }
-
 
 @Composable
 fun FixedHeightBox(modifier: Modifier, height: Dp, content: @Composable () -> Unit) {
