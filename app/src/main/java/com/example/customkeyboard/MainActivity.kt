@@ -78,7 +78,8 @@ fun MainContent() {
                     style = TextStyle(fontSize = 16.sp) // Set the same size as input text
                 )
             },
-            textStyle = TextStyle(fontSize = 16.sp) // Set input text size to 16.sp
+            textStyle = TextStyle(fontSize = 16.sp), // Set input text size to 16.sp
+            singleLine = true // Ensure the input does not expand vertically
         )
 
         Button(
@@ -106,4 +107,5 @@ fun MainContent() {
         }
     }
 }
+
 
