@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun KeyboardScreen() {
     val alphabeticKeysMatrix = arrayOf(
-        arrayOf("DEL", "", "BS", "7", "8", "9"),
+        arrayOf("DEL", "-", "BS", "7", "8", "9"),
         arrayOf("B", "H", "M", "4", "5", "6"),
         arrayOf("P", "R", "S", "1", "2", "3"),
         arrayOf("", "", "", "0", "Enter")
