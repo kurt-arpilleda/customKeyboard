@@ -1,6 +1,8 @@
 package com.example.customkeyboard
 
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.compose.setContent
@@ -20,11 +22,27 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.customkeyboard.ui.theme.CustomKeyboardTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import splitties.systemservices.inputMethodManager
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var appUpdateService: AppUpdateService
+    private lateinit var connectivityReceiver: NetworkUtils.ConnectivityReceiver // Correct type
+    private val coroutineScope = CoroutineScope(Dispatchers.Main)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        appUpdateService = AppUpdateService(this)
+        checkForUpdates()
+        connectivityReceiver = NetworkUtils.ConnectivityReceiver { // Initialize with lambda
+            checkForUpdates()
+        }
+        val filter = IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
+        registerReceiver(connectivityReceiver, filter)
+
         setContent {
             CustomKeyboardTheme {
                 Surface(color = MaterialTheme.colors.background) {
@@ -33,6 +51,18 @@ class MainActivity : AppCompatActivity() {
                         MainContent()
                     }
                 }
+            }
+        }
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(connectivityReceiver)
+    }
+
+    private fun checkForUpdates() {
+        coroutineScope.launch {
+            if (NetworkUtils.isNetworkAvailable(this@MainActivity)) { // Use the utility function
+                appUpdateService.checkForAppUpdate()
             }
         }
     }
