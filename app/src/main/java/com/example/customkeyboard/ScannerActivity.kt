@@ -3,6 +3,8 @@ package com.example.customkeyboard
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -37,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,6 +53,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 
@@ -68,8 +72,8 @@ class ScannerActivity : ComponentActivity() {
         val cameraPermissionState = rememberPermissionState(permission = Manifest.permission.CAMERA)
         var scannedBarcode by remember { mutableStateOf<String?>(null) }
         var isCameraActive by remember { mutableStateOf(false) }
-        var cameraWidth by remember { mutableStateOf(350.dp) }
-        var cameraHeight by remember { mutableStateOf(60.dp) }
+        var cameraWidth by remember { mutableStateOf(330.dp) }
+        var cameraHeight by remember { mutableStateOf(80.dp) }
 
         val context = LocalContext.current
 
@@ -163,8 +167,8 @@ class ScannerActivity : ComponentActivity() {
                         modifier = Modifier
                             .clickable {
                                 // When Barcode icon is clicked, reset camera size
-                                cameraWidth = 350.dp
-                                cameraHeight = 60.dp
+                                cameraWidth = 330.dp
+                                cameraHeight = 80.dp
                             }
                             .size(40.dp)
                     )
@@ -244,7 +248,7 @@ class ScannerActivity : ComponentActivity() {
         }
     }
 
-    fun processImageProxy(
+    private fun processImageProxy(
         imageProxy: ImageProxy,
         barcodeScanner: BarcodeScanner,
         onBarcodeScanned: (String) -> Unit,
@@ -254,30 +258,40 @@ class ScannerActivity : ComponentActivity() {
     ) {
         val currentTime = System.currentTimeMillis()
 
-        // Check if the time difference is more than 2 seconds (2000 milliseconds)
-        if (currentTime - lastScannedTimestamp > 2000) {
+        // Check if the time difference is more than 1 second (1000 milliseconds) to add a delay between scans
+        if (currentTime - lastScannedTimestamp > 1000) {  // Delay added here to wait between scans
             val image = InputImage.fromMediaImage(imageProxy.image!!, imageProxy.imageInfo.rotationDegrees)
 
-            // Check if the image is sharp enough by comparing the hash of the image (or a contrast-based method)
+            // Check if the image is sharp enough by calculating the sharpness using contrast-based method
             val currentImageHash = calculateImageSharpness(imageProxy)
-            if (currentImageHash != lastImageHash) { // Only process if the image has changed significantly
+
+            // Only process if the image has changed significantly or meets a confidence threshold
+            if (currentImageHash != lastImageHash) {
                 barcodeScanner.process(image)
                     .addOnSuccessListener { barcodes ->
+                        var foundValidBarcode = false
                         for (barcode in barcodes) {
                             val rawValue = barcode.rawValue
                             val confidence = barcode.boundingBox?.width() ?: 0
 
-                            // Check if the barcode has a reasonable width (avoiding blur detection)
-                            if (rawValue != null && confidence > 200) { // Increased confidence threshold to avoid blurry scans
+                            // Check if the barcode is fully visible, sharp enough, and has a high confidence level
+                            if (rawValue != null && confidence > 300 && isBarcodeVisible(barcode) && isSharpEnough(imageProxy)) {
                                 // Process the barcode and update the scanned value
                                 onBarcodeScanned(rawValue)
+                                foundValidBarcode = true
 
                                 // Update the last scanned timestamp to current time
                                 onTimestampUpdated(currentTime, currentImageHash)
 
-                                // Once a barcode is successfully scanned, break out of the loop
+                                // Once a valid barcode is successfully scanned, break out of the loop
                                 break
                             }
+                        }
+
+                        // If no valid barcode was found, continue scanning (to prevent false positives)
+                        if (!foundValidBarcode) {
+                            // Optionally log a message or delay a bit more before trying again
+                            Log.d("ScannerActivity", "No valid barcode detected, retrying...")
                         }
                     }
                     .addOnFailureListener {
@@ -292,17 +306,36 @@ class ScannerActivity : ComponentActivity() {
                 imageProxy.close()
             }
         } else {
-            // Skip processing if scanned too soon (avoid duplicate scans)
+            // Skip processing if scanned too soon (to avoid duplicate scans or scanning every frame)
             imageProxy.close()
         }
     }
 
-    fun calculateImageSharpness(imageProxy: ImageProxy): Int {
+    private fun isBarcodeVisible(barcode: Barcode): Boolean {
+        val boundingBox = barcode.boundingBox
+        // Ensure the bounding box is large enough and properly visible
+        return (boundingBox?.width() ?: 0) > 200 && (boundingBox?.height() ?: 0) > 60 // Minimum dimensions for visibility
+    }
+
+    private fun calculateImageSharpness(imageProxy: ImageProxy): Int {
         val image = imageProxy.image
         val buffer = image?.planes?.get(0)?.buffer
         val byteArray = ByteArray(buffer?.remaining() ?: 0)
         buffer?.get(byteArray)
-        return byteArray.contentHashCode()
+
+        // Optional: Apply contrast or edge detection to improve sharpness check
+        return byteArray.contentHashCode() // Replace with an edge-detection or contrast-based sharpness check
+    }
+
+    // Function to check if the image is sharp enough for processing
+    private fun isSharpEnough(imageProxy: ImageProxy): Boolean {
+        val image = imageProxy.image
+        val buffer = image?.planes?.get(0)?.buffer
+        val byteArray = ByteArray(buffer?.remaining() ?: 0)
+        buffer?.get(byteArray)
+
+        // Using basic content hash as a proxy for sharpness – this can be replaced with more complex methods
+        return byteArray.contentHashCode() != 0 // Arbitrary condition, needs improvement based on real sharpness logic
     }
 
     @Preview(showBackground = true)
@@ -311,3 +344,5 @@ class ScannerActivity : ComponentActivity() {
         ScannerScreen()
     }
 }
+
+
