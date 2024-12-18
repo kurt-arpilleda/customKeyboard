@@ -5,6 +5,7 @@ import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
@@ -29,7 +30,7 @@ import splitties.systemservices.inputMethodManager
 
 class MainActivity : AppCompatActivity() {
     private lateinit var appUpdateService: AppUpdateService
-    private lateinit var connectivityReceiver: NetworkUtils.ConnectivityReceiver // Correct type
+    private lateinit var connectivityReceiver: NetworkUtils.ConnectivityReceiver
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,7 +38,8 @@ class MainActivity : AppCompatActivity() {
 
         appUpdateService = AppUpdateService(this)
         checkForUpdates()
-        connectivityReceiver = NetworkUtils.ConnectivityReceiver { // Initialize with lambda
+
+        connectivityReceiver = NetworkUtils.ConnectivityReceiver {
             checkForUpdates()
         }
         val filter = IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
@@ -54,6 +56,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(connectivityReceiver)
@@ -61,7 +64,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkForUpdates() {
         coroutineScope.launch {
-            if (NetworkUtils.isNetworkAvailable(this@MainActivity)) { // Use the utility function
+            if (NetworkUtils.isNetworkAvailable(this@MainActivity)) {
                 appUpdateService.checkForAppUpdate()
             }
         }
@@ -137,5 +140,3 @@ fun MainContent() {
         }
     }
 }
-
-

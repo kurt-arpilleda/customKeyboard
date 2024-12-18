@@ -1,18 +1,26 @@
 package com.example.customkeyboard
 
+import android.app.Activity
+import android.content.Intent
 import android.view.KeyEvent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -42,16 +51,49 @@ fun KeyboardScreen() {
         arrayOf("P", "R", "S", "1", "2", "3"),
         arrayOf("-", "", "", "0", "Enter")
     )
+    val context = LocalContext.current // Access the current context
     val currentKeyPressed = remember { mutableStateOf("") }
+    val navigateToScanner = remember { mutableStateOf(false) } // Flag for navigation
+
+    LaunchedEffect(navigateToScanner.value) {
+        if (navigateToScanner.value) {
+            val intent = Intent(context, ScannerActivity::class.java)
+            if (context !is Activity) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            navigateToScanner.value = false // Reset the flag
+        }
+    }
+
 
     Column(
         modifier = Modifier
             .background(Color(0xFFA2ABBA))
-            .fillMaxWidth()
-            .padding(5.dp),
+            .fillMaxWidth(),
     ) {
+        // Add a row for the top-right corner icon
+        Row(
+            modifier = Modifier
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            IconButton(
+                onClick = {
+                    navigateToScanner.value = true // Set flag to true to trigger the intent
+                }
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.qrscanner), // Custom QR code scanner vector
+                    contentDescription = "QR Code Scanner Icon",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        // The rest of the keyboard layout
         alphabeticKeysMatrix.forEachIndexed { rowIndex, row ->
-            FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 60.dp) {
+            FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 54.dp) {
                 Row(Modifier) {
                     row.forEachIndexed { index, key ->
                         if (key.isNotEmpty()) {
@@ -59,9 +101,11 @@ fun KeyboardScreen() {
                                 "DEL" -> {
                                     RemoveAll(modifier = Modifier.weight(1f))
                                 }
+
                                 "BS" -> {
                                     RemoveKey(modifier = Modifier.weight(1f))
                                 }
+
                                 "B", "H", "M", "P", "R", "S" -> {
                                     KeyboardKey(
                                         keyboardKey = key,
@@ -72,6 +116,7 @@ fun KeyboardScreen() {
                                         }
                                     )
                                 }
+
                                 " " -> {
                                     KeyboardKey(
                                         keyboardKey = key,
@@ -81,9 +126,11 @@ fun KeyboardScreen() {
                                         }
                                     )
                                 }
+
                                 "Enter" -> {
                                     EnterKey(modifier = Modifier.weight(2f))
                                 }
+
                                 else -> {
                                     KeyboardKey(
                                         keyboardKey = key,
@@ -125,20 +172,21 @@ fun RemoveAll(modifier: Modifier) {
                 .clip(RoundedCornerShape(4.dp))
                 .clickable {
                     val inputConnection = (ctx as IMEService).currentInputConnection
-                    inputConnection.deleteSurroundingText(10000, 0) // A large number to ensure deletion of all text
+                    inputConnection.deleteSurroundingText(
+                        10000,
+                        0
+                    ) // A large number to ensure deletion of all text
                 }
                 .background(Color(0xFFFBECDD))
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 20.dp,
-                    bottom = 19.dp
+                    top = 18.dp,
+                    bottom = 17.dp
                 )
         )
     }
 }
-
-
 @Composable
 fun KeyboardKey(
     keyboardKey: String,
@@ -173,8 +221,8 @@ fun KeyboardKey(
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 20.dp,
-                    bottom = 19.dp
+                    top = 18.dp,
+                    bottom = 17.dp
                 ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
@@ -190,8 +238,8 @@ fun KeyboardKey(
                     .padding(
                         start = 16.dp,
                         end = 16.dp,
-                        top = 16.dp,
-                        bottom = 30.dp
+                        top = 14.dp,
+                        bottom = 27.dp
                     ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
@@ -241,10 +289,16 @@ fun RemoveKey(modifier: Modifier) {
                     val inputConnection = (ctx as IMEService).currentInputConnection
 
                     // Check if there is any selected text and delete it
-                    if (inputConnection.getSelectedText(0) != null && inputConnection.getSelectedText(0) != "") {
+                    if (inputConnection.getSelectedText(0) != null && inputConnection.getSelectedText(
+                            0
+                        ) != ""
+                    ) {
                         inputConnection.commitText("", 1) // Clear selected text
                     } else {
-                        inputConnection.deleteSurroundingText(1, 0) // Remove one character around the cursor
+                        inputConnection.deleteSurroundingText(
+                            1,
+                            0
+                        ) // Remove one character around the cursor
                     }
                 }
                 .background(
@@ -254,8 +308,8 @@ fun RemoveKey(modifier: Modifier) {
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 20.dp,
-                    bottom = 19.dp
+                    top = 18.dp,
+                    bottom = 17.dp
                 )
         )
     }
@@ -282,8 +336,18 @@ fun EnterKey(modifier: Modifier) {
 
                     // Simulate an enter key event (KEYCODE_ENTER)
                     val inputConnection = (ctx as IMEService).currentInputConnection
-                    inputConnection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
-                    inputConnection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+                    inputConnection.sendKeyEvent(
+                        KeyEvent(
+                            KeyEvent.ACTION_DOWN,
+                            KeyEvent.KEYCODE_ENTER
+                        )
+                    )
+                    inputConnection.sendKeyEvent(
+                        KeyEvent(
+                            KeyEvent.ACTION_UP,
+                            KeyEvent.KEYCODE_ENTER
+                        )
+                    )
                 }
                 .background(
                     if (isPressed.value) Color(0xFF99E6C8) else Color(0xFFC0FAE6) // Feedback color
@@ -295,8 +359,8 @@ fun EnterKey(modifier: Modifier) {
                 modifier = Modifier.padding(
                     start = 10.dp,
                     end = 12.dp,
-                    top = 20.dp,
-                    bottom = 19.dp
+                    top = 18.dp,
+                    bottom = 17.dp
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
@@ -319,5 +383,4 @@ fun FixedHeightBox(modifier: Modifier, height: Dp, content: @Composable () -> Un
         }
     }
 }
-
 

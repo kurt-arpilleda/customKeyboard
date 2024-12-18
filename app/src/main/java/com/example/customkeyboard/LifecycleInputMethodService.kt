@@ -31,5 +31,4 @@ abstract class LifecycleInputMethodService : InputMethodService(), LifecycleOwne
         dispatcher.onServicePreSuperOnDestroy()
         super.onDestroy()
     }
-
 }
