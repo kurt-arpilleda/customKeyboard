@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.Lifecycle
@@ -74,7 +75,18 @@ class IMEService : LifecycleInputMethodService(),
                 Log.d("IMEService", "Received scanned code: $scannedCode")
                 // Try posting a delayed commitText action
                 Handler(Looper.getMainLooper()).postDelayed({
-                    currentInputConnection?.commitText(scannedCode, 1)
+                    currentInputConnection?.apply {
+                        // Commit the scanned code
+                        commitText(scannedCode, 1)
+
+                        // Simulate the "Enter" key press (KeyEvent.KEYCODE_ENTER)
+                        val enterKeyEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)
+                        sendKeyEvent(enterKeyEvent)
+
+                        // Simulate key up for "Enter" to complete the action
+                        val enterKeyUpEvent = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER)
+                        sendKeyEvent(enterKeyUpEvent)
+                    }
                 }, 500) // Delay for 500ms
             }
         }
