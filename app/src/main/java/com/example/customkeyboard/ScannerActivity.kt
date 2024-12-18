@@ -314,7 +314,7 @@ class ScannerActivity : ComponentActivity() {
     private fun isBarcodeVisible(barcode: Barcode): Boolean {
         val boundingBox = barcode.boundingBox
         // Ensure the bounding box is large enough and properly visible
-        return (boundingBox?.width() ?: 0) > 200 && (boundingBox?.height() ?: 0) > 60 // Minimum dimensions for visibility
+        return (boundingBox?.width() ?: 0) > 300 && (boundingBox?.height() ?: 0) > 150 // Minimum dimensions for visibility
     }
 
     private fun calculateImageSharpness(imageProxy: ImageProxy): Int {
