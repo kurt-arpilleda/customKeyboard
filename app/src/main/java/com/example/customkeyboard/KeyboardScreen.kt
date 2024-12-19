@@ -93,7 +93,7 @@ fun KeyboardScreen() {
 
         // The rest of the keyboard layout
         alphabeticKeysMatrix.forEachIndexed { rowIndex, row ->
-            FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 54.dp) {
+            FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 56.dp) {
                 Row(Modifier) {
                     row.forEachIndexed { index, key ->
                         if (key.isNotEmpty()) {
@@ -221,8 +221,8 @@ fun KeyboardKey(
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 18.dp,
-                    bottom = 17.dp
+                    top = 19.dp,
+                    bottom = 18.dp
                 ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
@@ -238,8 +238,8 @@ fun KeyboardKey(
                     .padding(
                         start = 16.dp,
                         end = 16.dp,
-                        top = 14.dp,
-                        bottom = 27.dp
+                        top = 15.dp,
+                        bottom = 28.dp
                     ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
@@ -308,8 +308,8 @@ fun RemoveKey(modifier: Modifier) {
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 18.dp,
-                    bottom = 17.dp
+                    top = 19.dp,
+                    bottom = 18.dp
                 )
         )
     }
@@ -359,8 +359,8 @@ fun EnterKey(modifier: Modifier) {
                 modifier = Modifier.padding(
                     start = 10.dp,
                     end = 12.dp,
-                    top = 18.dp,
-                    bottom = 17.dp
+                    top = 19.dp,
+                    bottom = 18.dp
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows

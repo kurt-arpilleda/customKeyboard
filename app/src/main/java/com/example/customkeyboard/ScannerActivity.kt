@@ -77,7 +77,6 @@ class ScannerActivity : ComponentActivity() {
     @Composable
     fun ScannerScreen() {
         val cameraPermissionState = rememberPermissionState(permission = Manifest.permission.CAMERA)
-        var scannedBarcode by remember { mutableStateOf<String?>(null) }
         var isCameraActive by remember { mutableStateOf(false) }
         var cameraWidth by remember { mutableStateOf(330.dp) }
         var cameraHeight by remember { mutableStateOf(80.dp) }
@@ -193,13 +192,8 @@ class ScannerActivity : ComponentActivity() {
         val context = LocalContext.current
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
 
-        val barcodeScannerOptions = BarcodeScannerOptions.Builder()
-            .setBarcodeFormats(
-                Barcode.FORMAT_QR_CODE,
-                Barcode.FORMAT_CODE_39
-            )
-            .build()
-        val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient(barcodeScannerOptions)
+        // Remove specific barcode formats, allowing the scanner to detect any supported barcode
+        val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient()
 
         val executor = Executors.newSingleThreadExecutor()
 
@@ -235,7 +229,6 @@ class ScannerActivity : ComponentActivity() {
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                     .setTargetResolution(android.util.Size(1920, 1080)) // Use a higher resolution
                                     .build()
-
 
                                 imageAnalysis.setAnalyzer(executor) { imageProxy ->
                                     processImageProxy(
@@ -282,14 +275,13 @@ class ScannerActivity : ComponentActivity() {
                             val centerX = (canvasWidth - rect.width()) / 2
                             val centerY = (canvasHeight - rect.height()) / 2
 
-                                // Draw horizontal line for barcodes
-                                drawLine(
-                                    color = Color.Green,
-                                    start = Offset(centerX, centerY + rect.height() / 2),
-                                    end = Offset(centerX + rect.width(), centerY + rect.height() / 2),
-                                    strokeWidth = 5.dp.toPx()
-                                )
-
+                            // Draw horizontal line for barcodes
+                            drawLine(
+                                color = Color.Green,
+                                start = Offset(centerX, centerY + rect.height() / 2),
+                                end = Offset(centerX + rect.width(), centerY + rect.height() / 2),
+                                strokeWidth = 5.dp.toPx()
+                            )
                         }
                     }
                 }
@@ -302,6 +294,7 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
+
 
 
     private fun processImageProxy(
