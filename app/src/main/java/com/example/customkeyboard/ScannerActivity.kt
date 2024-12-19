@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,7 +56,13 @@ import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 
 class ScannerActivity : ComponentActivity() {
 
@@ -185,68 +192,117 @@ class ScannerActivity : ComponentActivity() {
     ) {
         val context = LocalContext.current
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-        val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient()
+
+        val barcodeScannerOptions = BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_QR_CODE,
+                Barcode.FORMAT_CODE_39
+            )
+            .build()
+        val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient(barcodeScannerOptions)
+
         val executor = Executors.newSingleThreadExecutor()
 
-        var lastScannedTimestamp by remember { mutableStateOf(0L) } // Track last scan time
-        var lastImageHash by remember { mutableStateOf<Int>(0) } // Track image sharpness
+        var lastScannedTimestamp by remember { mutableStateOf(0L) }
+        var lastImageHash by remember { mutableStateOf(0) }
+        var boundingBox by remember { mutableStateOf<Rect?>(null) }
+        var isQRCode by remember { mutableStateOf(false) }
+
+        var delayCompleted by remember { mutableStateOf(false) }
+
+        LaunchedEffect(Unit) {
+            delay(500)
+            delayCompleted = true
+        }
 
         Box(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .width(cameraWidth)
-                    .height(cameraHeight)
-                    .clip(RoundedCornerShape(15.dp)) // Clip the camera preview to fit inside the box
-            ) {
-                AndroidView(
-                    factory = { ctx ->
-                        val previewView = androidx.camera.view.PreviewView(ctx)
+            if (delayCompleted) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .width(cameraWidth)
+                        .height(cameraHeight)
+                        .clip(RoundedCornerShape(15.dp))
+                ) {
+                    AndroidView(
+                        factory = { ctx ->
+                            val previewView = androidx.camera.view.PreviewView(ctx)
 
-                        cameraProviderFuture.addListener({
-                            val cameraProvider = cameraProviderFuture.get()
+                            cameraProviderFuture.addListener({
+                                val cameraProvider = cameraProviderFuture.get()
 
-                            // Image Analysis for scanning
-                            val imageAnalysis = ImageAnalysis.Builder()
-                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                .build()
+                                val imageAnalysis = ImageAnalysis.Builder()
+                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .setTargetResolution(android.util.Size(1920, 1080)) // Use a higher resolution
+                                    .build()
 
-                            imageAnalysis.setAnalyzer(executor) { imageProxy ->
-                                processImageProxy(
-                                    imageProxy,
-                                    barcodeScanner,
-                                    onBarcodeScanned,
-                                    lastScannedTimestamp,
-                                    lastImageHash
-                                ) { newTimestamp, newImageHash ->
-                                    lastScannedTimestamp = newTimestamp // Update the last scanned timestamp
-                                    lastImageHash = newImageHash // Update the last image hash for sharpness
+
+                                imageAnalysis.setAnalyzer(executor) { imageProxy ->
+                                    processImageProxy(
+                                        imageProxy,
+                                        barcodeScanner,
+                                        onBarcodeScanned,
+                                        lastScannedTimestamp,
+                                        lastImageHash
+                                    ) { newTimestamp, newImageHash, detectedBoundingBox, detectedIsQRCode ->
+                                        lastScannedTimestamp = newTimestamp
+                                        lastImageHash = newImageHash
+                                        boundingBox = detectedBoundingBox
+                                        isQRCode = detectedIsQRCode
+                                    }
                                 }
-                            }
 
-                            // Camera Setup
-                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-                            val preview = androidx.camera.core.Preview.Builder().build().also {
-                                it.setSurfaceProvider(previewView.surfaceProvider)
-                            }
+                                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                                val preview = androidx.camera.core.Preview.Builder().build().also {
+                                    it.setSurfaceProvider(previewView.surfaceProvider)
+                                }
 
-                            cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(
-                                (ctx as ComponentActivity),
-                                cameraSelector,
-                                preview,
-                                imageAnalysis
-                            )
+                                cameraProvider.unbindAll()
+                                cameraProvider.bindToLifecycle(
+                                    (ctx as ComponentActivity),
+                                    cameraSelector,
+                                    preview,
+                                    imageAnalysis
+                                )
 
-                        }, ContextCompat.getMainExecutor(ctx))
+                            }, ContextCompat.getMainExecutor(ctx))
 
-                        previewView
-                    },
-                    modifier = Modifier.fillMaxSize() // Make camera scanner fill the entire box area
+                            previewView
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // Overlay Canvas for Green Indicator
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        boundingBox?.let { rect ->
+                            val canvasWidth = cameraWidth.toPx()
+                            val canvasHeight = cameraHeight.toPx()
+
+                            // Calculate position to center the bounding box in the camera size
+                            val centerX = (canvasWidth - rect.width()) / 2
+                            val centerY = (canvasHeight - rect.height()) / 2
+
+                                // Draw horizontal line for barcodes
+                                drawLine(
+                                    color = Color.Green,
+                                    start = Offset(centerX, centerY + rect.height() / 2),
+                                    end = Offset(centerX + rect.width(), centerY + rect.height() / 2),
+                                    strokeWidth = 5.dp.toPx()
+                                )
+
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = "Preparing Scanner...",
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.h6
                 )
             }
         }
     }
+
 
     private fun processImageProxy(
         imageProxy: ImageProxy,
@@ -254,88 +310,69 @@ class ScannerActivity : ComponentActivity() {
         onBarcodeScanned: (String) -> Unit,
         lastScannedTimestamp: Long,
         lastImageHash: Int,
-        onTimestampUpdated: (Long, Int) -> Unit
+        onStateUpdated: (Long, Int, Rect?, Boolean) -> Unit
     ) {
         val currentTime = System.currentTimeMillis()
 
-        // Check if the time difference is more than 1 second (1000 milliseconds) to add a delay between scans
-        if (currentTime - lastScannedTimestamp > 1000) {  // Delay added here to wait between scans
+        if (currentTime - lastScannedTimestamp > 2500) {
             val image = InputImage.fromMediaImage(imageProxy.image!!, imageProxy.imageInfo.rotationDegrees)
+            val currentImageHash = calculateImageHash(imageProxy)
 
-            // Check if the image is sharp enough by calculating the sharpness using contrast-based method
-            val currentImageHash = calculateImageSharpness(imageProxy)
-
-            // Only process if the image has changed significantly or meets a confidence threshold
             if (currentImageHash != lastImageHash) {
-                barcodeScanner.process(image)
-                    .addOnSuccessListener { barcodes ->
-                        var foundValidBarcode = false
-                        for (barcode in barcodes) {
-                            val rawValue = barcode.rawValue
-                            val confidence = barcode.boundingBox?.width() ?: 0
+                // Check if the image is sufficiently sharp and focused
+                if (isImageFocused(imageProxy)) {
+                    barcodeScanner.process(image)
+                        .addOnSuccessListener { barcodes ->
+                            for (barcode in barcodes) {
+                                val rawValue = barcode.rawValue
+                                val boundingBox = barcode.boundingBox
 
-                            // Check if the barcode is fully visible, sharp enough, and has a high confidence level
-                            if (rawValue != null && confidence > 300 && isBarcodeVisible(barcode) && isSharpEnough(imageProxy)) {
-                                // Process the barcode and update the scanned value
-                                onBarcodeScanned(rawValue)
-                                foundValidBarcode = true
+                                if (rawValue != null &&
+                                    boundingBox != null &&
+                                    boundingBox.width() > 500 && boundingBox.height() > 500
+                                ) {
+                                    val isQRCode = barcode.format == Barcode.FORMAT_QR_CODE
 
-                                // Update the last scanned timestamp to current time
-                                onTimestampUpdated(currentTime, currentImageHash)
-
-                                // Once a valid barcode is successfully scanned, break out of the loop
-                                break
+                                    onBarcodeScanned(rawValue)
+                                    onStateUpdated(currentTime, currentImageHash, boundingBox, isQRCode)
+                                    break
+                                }
                             }
                         }
-
-                        // If no valid barcode was found, continue scanning (to prevent false positives)
-                        if (!foundValidBarcode) {
-                            // Optionally log a message or delay a bit more before trying again
-                            Log.d("ScannerActivity", "No valid barcode detected, retrying...")
+                        .addOnFailureListener {
+                            Log.e("ScannerActivity", "Barcode scan failed: ${it.message}")
                         }
-                    }
-                    .addOnFailureListener {
-                        // Handle failure (optional logging)
-                        Log.e("ScannerActivity", "Barcode scan failed")
-                    }
-                    .addOnCompleteListener {
-                        imageProxy.close()
-                    }
+                        .addOnCompleteListener {
+                            imageProxy.close()
+                        }
+                } else {
+                    Log.d("ScannerActivity", "Image is not focused enough, skipping scan.")
+                    imageProxy.close()
+                }
             } else {
-                // Skip processing if the image is too similar to the previous one (indicating little change in stability)
                 imageProxy.close()
             }
         } else {
-            // Skip processing if scanned too soon (to avoid duplicate scans or scanning every frame)
             imageProxy.close()
         }
     }
 
-    private fun isBarcodeVisible(barcode: Barcode): Boolean {
-        val boundingBox = barcode.boundingBox
-        // Ensure the bounding box is large enough and properly visible
-        return (boundingBox?.width() ?: 0) > 300 && (boundingBox?.height() ?: 0) > 150 // Minimum dimensions for visibility
-    }
-
-    private fun calculateImageSharpness(imageProxy: ImageProxy): Int {
+    private fun calculateImageHash(imageProxy: ImageProxy): Int {
         val image = imageProxy.image
         val buffer = image?.planes?.get(0)?.buffer
         val byteArray = ByteArray(buffer?.remaining() ?: 0)
         buffer?.get(byteArray)
 
-        // Optional: Apply contrast or edge detection to improve sharpness check
-        return byteArray.contentHashCode() // Replace with an edge-detection or contrast-based sharpness check
+        // Return a hash of the image content for determining stability
+        return byteArray.contentHashCode()
     }
 
-    // Function to check if the image is sharp enough for processing
-    private fun isSharpEnough(imageProxy: ImageProxy): Boolean {
+    private fun isImageFocused(imageProxy: ImageProxy): Boolean {
         val image = imageProxy.image
-        val buffer = image?.planes?.get(0)?.buffer
-        val byteArray = ByteArray(buffer?.remaining() ?: 0)
-        buffer?.get(byteArray)
+        val width = image?.width ?: return false
+        val height = image?.height ?: return false
 
-        // Using basic content hash as a proxy for sharpness – this can be replaced with more complex methods
-        return byteArray.contentHashCode() != 0 // Arbitrary condition, needs improvement based on real sharpness logic
+        return width > 100 && height > 100
     }
 
     @Preview(showBackground = true)
