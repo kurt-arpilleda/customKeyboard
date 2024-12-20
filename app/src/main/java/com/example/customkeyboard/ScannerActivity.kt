@@ -339,21 +339,32 @@ class ScannerActivity : ComponentActivity() {
                                 val rawValue = barcode.rawValue
                                 val boundingBox = barcode.boundingBox
 
-                                if (rawValue != null && boundingBox != null && boundingBox.width() > 100 && boundingBox.height() > 140) {
-                                    val isQRCode = barcode.format == Barcode.FORMAT_QR_CODE
+                                if (rawValue != null && boundingBox != null) {
+                                    // Get the camera feed resolution
+                                    val imageWidth = imageProxy.width
+                                    val imageHeight = imageProxy.height
 
-                                    val centerMargin = 0.5
-                                    val centerRect = Rect(
-                                        (imageProxy.width * centerMargin).toInt(),
-                                        (imageProxy.height * centerMargin).toInt(),
-                                        (imageProxy.width * (1 - centerMargin)).toInt(),
-                                        (imageProxy.height * (1 - centerMargin)).toInt()
-                                    )
+                                    // Set a threshold as a percentage of the resolution
+                                    val minWidth = imageWidth * 0.3f  // 20% of the image width
+                                    val minHeight = imageHeight * 0.1f // 20% of the image height
 
-                                    if (isBoundingBoxInCenterRegion(boundingBox, centerRect)) {
-                                        onBarcodeScanned(rawValue)
-                                        onStateUpdated(currentTime, currentImageHash, boundingBox, isQRCode)
-                                        break
+                                    // Check if the bounding box is sufficiently large based on resolution
+                                    if (boundingBox.width() > minWidth && boundingBox.height() > minHeight) {
+                                        val isQRCode = barcode.format == Barcode.FORMAT_QR_CODE
+
+                                        val centerMargin = 0.5
+                                        val centerRect = Rect(
+                                            (imageWidth * centerMargin).toInt(),
+                                            (imageHeight * centerMargin).toInt(),
+                                            (imageWidth * (1 - centerMargin)).toInt(),
+                                            (imageHeight * (1 - centerMargin)).toInt()
+                                        )
+
+                                        if (isBoundingBoxInCenterRegion(boundingBox, centerRect)) {
+                                            onBarcodeScanned(rawValue)
+                                            onStateUpdated(currentTime, currentImageHash, boundingBox, isQRCode)
+                                            break
+                                        }
                                     }
                                 }
                             }
