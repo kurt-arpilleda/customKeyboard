@@ -345,8 +345,8 @@ class ScannerActivity : ComponentActivity() {
                                     val imageHeight = imageProxy.height
 
                                     // Set a threshold as a percentage of the resolution
-                                    val minWidth = imageWidth * 0.3f  // 20% of the image width
-                                    val minHeight = imageHeight * 0.1f // 20% of the image height
+                                    val minWidth = imageWidth * 0.3f  // 30% of the image width
+                                    val minHeight = imageHeight * 0.1f // 10% of the image height
 
                                     // Check if the bounding box is sufficiently large based on resolution
                                     if (boundingBox.width() > minWidth && boundingBox.height() > minHeight) {
