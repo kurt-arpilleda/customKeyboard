@@ -8,10 +8,12 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -120,62 +122,73 @@ class ScannerActivity : ComponentActivity() {
                     Icon(
                         painter = painterResource(id = R.drawable.qrscanner),
                         contentDescription = null,
-                        tint = Color.Black
+                        tint = Color.White
                     )
                     Text(
                         text = "Scan Here",
-                        color = Color.Black,
+                        color = Color.White,
                         fontSize = 20.sp
                     )
                 }
 
                 Text(
                     text = "Place the code inside the frame.\nMake sure it is not cut or has any blur.",
-                    color = Color.Black,
+                    color = Color.White,
                     fontSize = 12.sp
                 )
 
                 // Spacer to push the icons down to the bottom
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Row for the QR and Barcode icons at the bottom
+                // Row for the QR and Barcode icons at the bottom with border
                 Row(
                     modifier = Modifier
                         .fillMaxWidth() // Ensures the icons are aligned to the bottom of the screen
                         .padding(bottom = 16.dp), // Bottom padding for icons
-                    horizontalArrangement = Arrangement.End, // Center the icons
+                    horizontalArrangement = Arrangement.Center, // Center the icons
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.qr_icon),
-                        contentDescription = null,
-                        tint = Color.Black,
+                    Box(
                         modifier = Modifier
-                            .clickable {
-                                // When QR icon is clicked, change camera size
-                                cameraWidth = 250.dp
-                                cameraHeight = 250.dp
-                            }
-                            .size(40.dp)
-                    )
+                            .border(2.dp, Color.White, RoundedCornerShape(8.dp))
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.qr_icon),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier
+                                .clickable {
+                                    // When QR icon is clicked, change camera size
+                                    cameraWidth = 250.dp
+                                    cameraHeight = 250.dp
+                                }
+                                .size(40.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(16.dp)) // Spacer between the two icons
-                    Icon(
-                        painter = painterResource(id = R.drawable.barcode_icon),
-                        contentDescription = null,
-                        tint = Color.Black,
+                    Box(
                         modifier = Modifier
-                            .clickable {
-                                // When Barcode icon is clicked, reset camera size
-                                cameraWidth = 330.dp
-                                cameraHeight = 80.dp
-                            }
-                            .size(40.dp)
-                    )
+                            .border(2.dp, Color.White, RoundedCornerShape(8.dp))
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.barcode_icon),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier
+                                .clickable {
+                                    // When Barcode icon is clicked, reset camera size
+                                    cameraWidth = 330.dp
+                                    cameraHeight = 80.dp
+                                }
+                                .size(40.dp)
+                        )
+                    }
                 }
             }
         }
     }
-
     @Composable
     fun CameraScanner(
         onBarcodeScanned: (String) -> Unit,
@@ -185,7 +198,6 @@ class ScannerActivity : ComponentActivity() {
         val context = LocalContext.current
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
 
-        // Remove specific barcode formats, allowing the scanner to detect any supported barcode
         val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient()
 
         val executor = Executors.newSingleThreadExecutor()
@@ -205,11 +217,7 @@ class ScannerActivity : ComponentActivity() {
         Box(modifier = Modifier.fillMaxSize()) {
             if (delayCompleted) {
                 Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .width(cameraWidth)
-                        .height(cameraHeight)
-                        .clip(RoundedCornerShape(15.dp))
+                    modifier = Modifier.fillMaxSize() // Ensure the camera fills the screen
                 ) {
                     AndroidView(
                         factory = { ctx ->
@@ -220,7 +228,8 @@ class ScannerActivity : ComponentActivity() {
 
                                 val imageAnalysis = ImageAnalysis.Builder()
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                    .setTargetResolution(android.util.Size(1920, 1080)) // Use a higher resolution
+                                    .setTargetResolution(android.util.Size(3840, 2160)) // 4K resolution
+
                                     .build()
 
                                 imageAnalysis.setAnalyzer(executor) { imageProxy ->
@@ -239,6 +248,12 @@ class ScannerActivity : ComponentActivity() {
                                 }
 
                                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                                // Set focus to center by default
+                                val meteringPointFactory = previewView.meteringPointFactory
+                                val center = meteringPointFactory.createPoint(0.5f, 0.5f)
+                                val action = FocusMeteringAction.Builder(center).build()
+
                                 val preview = androidx.camera.core.Preview.Builder().build().also {
                                     it.setSurfaceProvider(previewView.surfaceProvider)
                                 }
@@ -251,6 +266,14 @@ class ScannerActivity : ComponentActivity() {
                                     imageAnalysis
                                 )
 
+                                // Enable autofocus and set it to center by default
+                                val cameraControl = cameraProvider.bindToLifecycle(
+                                    ctx,
+                                    cameraSelector,
+                                    preview
+                                ).cameraControl
+                                cameraControl.startFocusAndMetering(action)
+
                             }, ContextCompat.getMainExecutor(ctx))
 
                             previewView
@@ -258,8 +281,13 @@ class ScannerActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Overlay Canvas for Green Indicator
-                    Canvas(modifier = Modifier.fillMaxSize()) {
+                    // Centered Canvas for Green Indicator with size border
+                    Canvas(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .width(cameraWidth)
+                            .height(cameraHeight)
+                    ) {
                         boundingBox?.let { rect ->
                             val canvasWidth = cameraWidth.toPx()
                             val canvasHeight = cameraHeight.toPx()
@@ -278,6 +306,15 @@ class ScannerActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                // Display camera size border (indicating QR/Barcode size)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .border(2.dp, Color.White, RoundedCornerShape(16.dp))
+                        .width(cameraWidth)
+                        .height(cameraHeight)
+                )
             } else {
                 Text(
                     text = "Preparing Scanner...",
@@ -287,9 +324,6 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
-
-
-
     private fun processImageProxy(
         imageProxy: ImageProxy,
         barcodeScanner: BarcodeScanner,
@@ -300,7 +334,7 @@ class ScannerActivity : ComponentActivity() {
     ) {
         val currentTime = System.currentTimeMillis()
 
-        if (currentTime - lastScannedTimestamp > 2500) {
+        if (currentTime - lastScannedTimestamp > 2000) {
             val image = InputImage.fromMediaImage(imageProxy.image!!, imageProxy.imageInfo.rotationDegrees)
             val currentImageHash = calculateImageHash(imageProxy)
 
@@ -313,15 +347,25 @@ class ScannerActivity : ComponentActivity() {
                                 val rawValue = barcode.rawValue
                                 val boundingBox = barcode.boundingBox
 
-                                if (rawValue != null &&
-                                    boundingBox != null &&
-                                    boundingBox.width() > 500 && boundingBox.height() > 500
-                                ) {
+                                if (rawValue != null && boundingBox != null &&
+                                    boundingBox.width() > 100 && boundingBox.height() > 140) {
                                     val isQRCode = barcode.format == Barcode.FORMAT_QR_CODE
 
-                                    onBarcodeScanned(rawValue)
-                                    onStateUpdated(currentTime, currentImageHash, boundingBox, isQRCode)
-                                    break
+                                    // Define the center frame boundaries (percentage of the image)
+                                    val centerMargin = 0.4 // 50% of the image
+                                    val centerRect = Rect(
+                                        (imageProxy.width * centerMargin).toInt(),
+                                        (imageProxy.height * centerMargin).toInt(),
+                                        (imageProxy.width * (1 - centerMargin)).toInt(),
+                                        (imageProxy.height * (1 - centerMargin)).toInt()
+                                    )
+
+                                    // Check if the bounding box is inside the center region
+                                    if (isBoundingBoxInCenterRegion(boundingBox, centerRect)) {
+                                        onBarcodeScanned(rawValue)
+                                        onStateUpdated(currentTime, currentImageHash, boundingBox, isQRCode)
+                                        break
+                                    }
                                 }
                             }
                         }
@@ -341,6 +385,11 @@ class ScannerActivity : ComponentActivity() {
         } else {
             imageProxy.close()
         }
+    }
+
+    // Function to check if the bounding box is inside the center region
+    private fun isBoundingBoxInCenterRegion(boundingBox: Rect, centerRegion: Rect): Boolean {
+        return boundingBox.intersect(centerRegion)
     }
 
     private fun calculateImageHash(imageProxy: ImageProxy): Int {
