@@ -3,8 +3,10 @@ package com.example.customkeyboard
 import android.Manifest
 import android.content.Intent
 import android.graphics.Rect
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.util.Patterns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.camera.core.CameraSelector
@@ -93,14 +95,21 @@ class ScannerActivity : ComponentActivity() {
                 CameraScanner(
                     onBarcodeScanned = { barcodeValue ->
                         Log.d("ScannerActivity", "Scanned Barcode: $barcodeValue")
-                        // Send the scanned result back via a broadcast
-                        val intent = Intent().apply {
-                            action = "com.example.customkeyboard.SCANNED_CODE"
-                            putExtra("SCANNED_CODE", barcodeValue)
+
+                        // Check if scanned code is a valid URL
+                        if (Patterns.WEB_URL.matcher(barcodeValue).matches()) {
+                            // If it is a URL, open it in the browser
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(barcodeValue))
+                            context.startActivity(intent)
+                        } else {
+                            // If it's not a URL, send the scanned result via a broadcast
+                            val intent = Intent().apply {
+                                action = "com.example.customkeyboard.SCANNED_CODE"
+                                putExtra("SCANNED_CODE", barcodeValue)
+                            }
+                            context.sendBroadcast(intent)
+                            finish()
                         }
-                        sendBroadcast(intent)
-                        // Finish the activity to return control to the keyboard
-                        finish()
                     },
                     cameraWidth = cameraWidth,
                     cameraHeight = cameraHeight
