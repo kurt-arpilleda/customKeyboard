@@ -134,7 +134,7 @@ fun TopAppBarContent() {
     TopAppBar(
         title = {
             Text(
-                text = "Custom Keyboard",
+                text = "ARK Keyboard",
                 style = TextStyle(
                     fontSize = 24.sp
                 )
