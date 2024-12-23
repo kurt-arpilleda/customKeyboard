@@ -360,7 +360,7 @@ class ScannerActivity : ComponentActivity() {
 
                                     // Set a threshold as a percentage of the resolution
                                     val minWidth = imageWidth * 0.3f
-                                    val minHeight = imageHeight * 0.12f
+                                    val minHeight = imageHeight * 0.13f
 
                                     // Check if the bounding box is sufficiently large based on resolution
                                     if (boundingBox.width() > minWidth && boundingBox.height() > minHeight) {
@@ -422,7 +422,7 @@ class ScannerActivity : ComponentActivity() {
 
         // Use 20% of image width and 10% of image height as thresholds
         val minWidth = width * 0.3
-        val minHeight = height * 0.12
+        val minHeight = height * 0.13
 
         return width > minWidth && height > minHeight
     }
