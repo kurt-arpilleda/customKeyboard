@@ -80,6 +80,7 @@ class ScannerActivity : ComponentActivity() {
         var cameraHeight by remember { mutableStateOf(80.dp) }
 
         val context = LocalContext.current
+        var flashlightOn by remember { mutableStateOf(false) } // State for flashlight
 
         // Request camera permission and activate camera when permission is granted
         LaunchedEffect(cameraPermissionState.status.isGranted) {
@@ -95,8 +96,6 @@ class ScannerActivity : ComponentActivity() {
             if (isCameraActive) {
                 CameraScanner(
                     onBarcodeScanned = { barcodeValue ->
-                        Log.d("ScannerActivity", "Scanned Barcode: $barcodeValue")
-
                         // Check if scanned code is a valid URL
                         if (Patterns.WEB_URL.matcher(barcodeValue).matches()) {
                             // If it is a URL, open it in the browser
@@ -113,7 +112,8 @@ class ScannerActivity : ComponentActivity() {
                         }
                     },
                     cameraWidth = cameraWidth,
-                    cameraHeight = cameraHeight
+                    cameraHeight = cameraHeight,
+                    flashlightOn = flashlightOn // Pass the flashlight state to CameraScanner
                 )
             }
 
@@ -150,7 +150,7 @@ class ScannerActivity : ComponentActivity() {
                 // Spacer to push the icons down to the bottom
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Row for the QR and Barcode icons at the bottom with border
+                // Row for the QR, Barcode, and Flashlight icons at the bottom with border
                 Row(
                     modifier = Modifier
                         .fillMaxWidth() // Ensures the icons are aligned to the bottom of the screen
@@ -176,7 +176,7 @@ class ScannerActivity : ComponentActivity() {
                                 .size(40.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(16.dp)) // Spacer between the two icons
+                    Spacer(modifier = Modifier.width(16.dp)) // Spacer between the icons
                     Box(
                         modifier = Modifier
                             .border(2.dp, Color.White, RoundedCornerShape(8.dp))
@@ -195,15 +195,34 @@ class ScannerActivity : ComponentActivity() {
                                 .size(40.dp)
                         )
                     }
+                    Spacer(modifier = Modifier.width(16.dp)) // Spacer between the icons
+                    Box(
+                        modifier = Modifier
+                            .border(2.dp, Color.White, RoundedCornerShape(8.dp))
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.flash_icon),
+                            contentDescription = null,
+                            tint = if (flashlightOn) Color.Yellow else Color.White, // Change tint based on flashlight status
+                            modifier = Modifier
+                                .clickable {
+                                    flashlightOn = !flashlightOn // Toggle flashlight on/off
+                                }
+                                .size(40.dp)
+                        )
+                    }
                 }
             }
         }
     }
+
     @Composable
     fun CameraScanner(
         onBarcodeScanned: (String) -> Unit,
         cameraWidth: Dp,
-        cameraHeight: Dp
+        cameraHeight: Dp,
+        flashlightOn: Boolean // Add flashlight state parameter
     ) {
         val context = LocalContext.current
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
@@ -211,7 +230,6 @@ class ScannerActivity : ComponentActivity() {
         val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient()
         val executor = Executors.newCachedThreadPool() // Use cached thread pool for better performance.
 
-        var lastScannedTimestamp by remember { mutableStateOf(0L) }
         var lastImageHash by remember { mutableStateOf(0) }
         var boundingBox by remember { mutableStateOf<Rect?>(null) }
         var isQRCode by remember { mutableStateOf(false) }
@@ -221,6 +239,22 @@ class ScannerActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
             delay(500)
             delayCompleted = true
+        }
+
+        // Set flashlight on/off based on state
+        LaunchedEffect(flashlightOn) {
+            val cameraProvider = cameraProviderFuture.get()
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            val cameraControl = cameraProvider.bindToLifecycle(
+                context as ComponentActivity,
+                cameraSelector
+            ).cameraControl
+
+            if (flashlightOn) {
+                cameraControl.enableTorch(true)
+            } else {
+                cameraControl.enableTorch(false)
+            }
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
@@ -236,8 +270,8 @@ class ScannerActivity : ComponentActivity() {
                                 val cameraProvider = cameraProviderFuture.get()
 
                                 val imageAnalysis = ImageAnalysis.Builder()
-                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST )
-                                    .setTargetResolution(android.util.Size(1280, 720))
+                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .setTargetResolution(android.util.Size(1920, 1080))
                                     .build()
 
                                 imageAnalysis.setAnalyzer(executor) { imageProxy ->
@@ -245,10 +279,8 @@ class ScannerActivity : ComponentActivity() {
                                         imageProxy,
                                         barcodeScanner,
                                         onBarcodeScanned,
-                                        lastScannedTimestamp,
                                         lastImageHash
-                                    ) { newTimestamp, newImageHash, detectedBoundingBox, detectedIsQRCode ->
-                                        lastScannedTimestamp = newTimestamp
+                                    ) { newImageHash, detectedBoundingBox, detectedIsQRCode ->
                                         lastImageHash = newImageHash
                                         boundingBox = detectedBoundingBox
                                         isQRCode = detectedIsQRCode
@@ -270,7 +302,7 @@ class ScannerActivity : ComponentActivity() {
 
                                 cameraProvider.unbindAll()
                                 cameraProvider.bindToLifecycle(
-                                    (ctx as ComponentActivity),
+                                    ctx as ComponentActivity,
                                     cameraSelector,
                                     preview,
                                     imageAnalysis
@@ -334,72 +366,75 @@ class ScannerActivity : ComponentActivity() {
         imageProxy: ImageProxy,
         barcodeScanner: BarcodeScanner,
         onBarcodeScanned: (String) -> Unit,
-        lastScannedTimestamp: Long,
         lastImageHash: Int,
-        onStateUpdated: (Long, Int, Rect?, Boolean) -> Unit
+        onStateUpdated: (Int, Rect?, Boolean) -> Unit
     ) {
-        val currentTime = System.currentTimeMillis()
+        val image = InputImage.fromMediaImage(imageProxy.image!!, imageProxy.imageInfo.rotationDegrees)
+        val currentImageHash = calculateImageHash(imageProxy)
 
-        if (currentTime - lastScannedTimestamp > 1000) {
-            val image = InputImage.fromMediaImage(imageProxy.image!!, imageProxy.imageInfo.rotationDegrees)
-            val currentImageHash = calculateImageHash(imageProxy)
+        if (currentImageHash != lastImageHash) {
+            // Check image sharpness before processing
+            if (isImageFocused(imageProxy)) {
+                barcodeScanner.process(image)
+                    .addOnSuccessListener { barcodes ->
+                        var barcodeDetected = false
+                        for (barcode in barcodes) {
+                            val rawValue = barcode.rawValue
+                            val boundingBox = barcode.boundingBox
 
-            if (currentImageHash != lastImageHash) {
-                // Check image sharpness before processing
-                if (isImageFocused(imageProxy)) {
-                    barcodeScanner.process(image)
-                        .addOnSuccessListener { barcodes ->
-                            for (barcode in barcodes) {
-                                val rawValue = barcode.rawValue
-                                val boundingBox = barcode.boundingBox
+                            if (rawValue != null && boundingBox != null) {
+                                // Get the camera feed resolution
+                                val imageWidth = imageProxy.width
+                                val imageHeight = imageProxy.height
 
-                                if (rawValue != null && boundingBox != null) {
-                                    // Get the camera feed resolution
-                                    val imageWidth = imageProxy.width
-                                    val imageHeight = imageProxy.height
+                                // Set a threshold as a percentage of the resolution
+                                val minWidth = imageWidth * 0.25f
+                                val minHeight = imageHeight * 0.1f
 
-                                    // Set a threshold as a percentage of the resolution
-                                    val minWidth = imageWidth * 0.3f
-                                    val minHeight = imageHeight * 0.13f
+                                // Check if the bounding box is sufficiently large based on resolution
+                                if (boundingBox.width() > minWidth && boundingBox.height() > minHeight) {
+                                    val isQRCode = barcode.format == Barcode.FORMAT_QR_CODE
 
-                                    // Check if the bounding box is sufficiently large based on resolution
-                                    if (boundingBox.width() > minWidth && boundingBox.height() > minHeight) {
-                                        val isQRCode = barcode.format == Barcode.FORMAT_QR_CODE
+                                    val centerMargin = 0.5
+                                    val centerRect = Rect(
+                                        (imageWidth * centerMargin).toInt(),
+                                        (imageHeight * centerMargin).toInt(),
+                                        (imageWidth * (1 - centerMargin)).toInt(),
+                                        (imageHeight * (1 - centerMargin)).toInt()
+                                    )
 
-                                        val centerMargin = 0.5
-                                        val centerRect = Rect(
-                                            (imageWidth * centerMargin).toInt(),
-                                            (imageHeight * centerMargin).toInt(),
-                                            (imageWidth * (1 - centerMargin)).toInt(),
-                                            (imageHeight * (1 - centerMargin)).toInt()
-                                        )
-
-                                        if (isBoundingBoxInCenterRegion(boundingBox, centerRect)) {
-                                            onBarcodeScanned(rawValue)
-                                            onStateUpdated(currentTime, currentImageHash, boundingBox, isQRCode)
-                                            break
-                                        }
+                                    // Check if the bounding box is within the center region of the image
+                                    if (isBoundingBoxInCenterRegion(boundingBox, centerRect)) {
+                                        // Only trigger the scan if the frame is good
+                                        onBarcodeScanned(rawValue)
+                                        onStateUpdated(currentImageHash, boundingBox, isQRCode)
+                                        barcodeDetected = true
+                                        break
                                     }
                                 }
                             }
                         }
-                        .addOnFailureListener {
-                            Log.e("ScannerActivity", "Barcode scan failed: ${it.message}")
+
+                        // If no barcode is detected, do not call the onBarcodeScanned callback
+                        if (!barcodeDetected) {
+//                            Log.d("ScannerActivity", "Barcode not detected or not in center region.")
                         }
-                        .addOnCompleteListener {
-                            imageProxy.close()
-                        }
-                } else {
-                    Log.d("ScannerActivity", "Image is not focused enough, skipping scan.")
-                    imageProxy.close()
-                }
+                    }
+                    .addOnFailureListener {
+//                        Log.e("ScannerActivity", "Barcode scan failed: ${it.message}")
+                    }
+                    .addOnCompleteListener {
+                        imageProxy.close()
+                    }
             } else {
+//                Log.d("ScannerActivity", "Image is not focused enough, skipping scan.")
                 imageProxy.close()
             }
         } else {
             imageProxy.close()
         }
     }
+
 
     private fun calculateImageHash(imageProxy: ImageProxy): Int {
         val image = imageProxy.image
@@ -420,9 +455,9 @@ class ScannerActivity : ComponentActivity() {
         val width = image?.width ?: return false
         val height = image?.height ?: return false
 
-        // Use 20% of image width and 10% of image height as thresholds
-        val minWidth = width * 0.3
-        val minHeight = height * 0.13
+        // Use 30% of image width and 10% of image height as thresholds
+        val minWidth = width * 0.25
+        val minHeight = height * 0.1
 
         return width > minWidth && height > minHeight
     }

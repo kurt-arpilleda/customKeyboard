@@ -67,31 +67,68 @@ class IMEService : LifecycleInputMethodService(),
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateRegistryController.savedStateRegistry
 
+    // Map to track the frequency of received codes
+    private val codeFrequencyMap = mutableMapOf<String, Int>()
+
+    // List to track the order of received codes
+    private val receivedCodes = mutableListOf<String>()
+
     // BroadcastReceiver to handle scanned codes
     private val scannedCodeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val scannedCode = intent.getStringExtra("SCANNED_CODE")
             if (!scannedCode.isNullOrEmpty()) {
-                Log.d("IMEService", "Received scanned code: $scannedCode")
-                // Try posting a delayed commitText action
+                // Increment the count for the scanned code
+                codeFrequencyMap[scannedCode] = codeFrequencyMap.getOrDefault(scannedCode, 0) + 1
+
+                // Add to the received codes list
+                receivedCodes.add(scannedCode)
+
+//                Log.d("IMEService", "Received scanned code: $scannedCode")
+
+                // Post a delayed action to process the most frequent or last code
                 Handler(Looper.getMainLooper()).postDelayed({
-                    currentInputConnection?.apply {
-                        // Commit the scanned code
-                        commitText(scannedCode, 1)
-
-                        // Simulate the "Enter" key press (KeyEvent.KEYCODE_ENTER)
-                        val enterKeyEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)
-                        sendKeyEvent(enterKeyEvent)
-
-                        // Simulate key up for "Enter" to complete the action
-                        val enterKeyUpEvent = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER)
-                        sendKeyEvent(enterKeyUpEvent)
-                    }
-                }, 500) // Delay for 500ms
+                    processCode()
+                }, 1000)
             }
         }
     }
 
+    private fun processCode() {
+        if (codeFrequencyMap.isNotEmpty()) {
+            // Determine if there are duplicates
+            val hasDuplicates = codeFrequencyMap.values.any { it > 1 }
+
+            val codeToCommit = if (hasDuplicates) {
+                // Find the code with the highest frequency
+                codeFrequencyMap.maxByOrNull { it.value }?.key
+            } else {
+                // No duplicates, get the last received code
+                receivedCodes.lastOrNull()
+            }
+
+            codeToCommit?.let {
+                currentInputConnection?.apply {
+                    // Commit the selected code
+                    commitText(it, 1)
+
+                    // Simulate the "Enter" key press (KeyEvent.KEYCODE_ENTER)
+                    val enterKeyEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)
+                    sendKeyEvent(enterKeyEvent)
+
+                    // Simulate key up for "Enter" to complete the action
+                    val enterKeyUpEvent = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER)
+                    sendKeyEvent(enterKeyUpEvent)
+                }
+
+//                Log.d("IMEService", "Committed code: $it")
+
+                // Clear the frequency map and received codes list after committing
+                codeFrequencyMap.clear()
+                receivedCodes.clear()
+            }
+        }
+    }
 }
 
 // Custom Compose view for the keyboard
