@@ -182,7 +182,7 @@ fun MainContent() {
                 .padding(top = 16.dp),
             shape = RoundedCornerShape(50)
         ) {
-            Text(text = "Enable Custom Keyboard")
+            Text(text = "Enable Ark Keyboard")
         }
 
         Button(
@@ -194,7 +194,7 @@ fun MainContent() {
                 .padding(top = 16.dp),
             shape = RoundedCornerShape(50)
         ) {
-            Text(text = "Select Custom Keyboard")
+            Text(text = "Select Ark Keyboard")
         }
     }
 }
