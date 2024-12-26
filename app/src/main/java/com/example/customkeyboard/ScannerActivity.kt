@@ -142,7 +142,7 @@ class ScannerActivity : ComponentActivity() {
                 }
 
                 Text(
-                    text = "Place the code inside the frame.\nMake sure it is not cut or has any blur.",
+                    text = "Place the code inside the frame.\nEnsure it is centered and not blurry.",
                     color = Color.White,
                     fontSize = 12.sp
                 )
