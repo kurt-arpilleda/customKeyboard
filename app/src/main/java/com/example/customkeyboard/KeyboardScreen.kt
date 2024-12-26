@@ -82,9 +82,9 @@ fun KeyboardScreen() {
                 }
             ) {
                 Icon(
-                    painter = painterResource(id = R.drawable.qrscanner), // Custom QR code scanner vector
+                    painter = painterResource(id = R.drawable.barcodescan),
                     contentDescription = "QR Code Scanner Icon",
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(28.dp)
                 )
             }
         }

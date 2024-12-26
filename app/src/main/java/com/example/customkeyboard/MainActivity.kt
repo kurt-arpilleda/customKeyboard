@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -17,11 +18,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
-import androidx.compose.material.TextField
 import androidx.compose.material.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,12 +88,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
+
 @Composable
 fun ShowImportantReminderDialog() {
     var showDialog by remember { mutableStateOf(true) }
 
     if (showDialog) {
-        // Custom AlertDialog with a more modern design
         AlertDialog(
             onDismissRequest = {
                 showDialog = false
@@ -98,33 +101,27 @@ fun ShowImportantReminderDialog() {
             title = {
                 Text(
                     text = "Important Reminder",
-                    style = MaterialTheme.typography.h6, // Make the title stand out
+                    style = MaterialTheme.typography.h6
                 )
             },
             text = {
                 Text(
                     text = "After selecting this keyboard as your default, clear this app in the background because after scanning, it will be back to this activity and not to the previous page.",
-                    style = MaterialTheme.typography.body2, // Better text style
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f) // Subtle text color
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
                 )
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDialog = false
-                    },
-                    content = {
-                        Text(
-                            text = "OK",
-                            style = MaterialTheme.typography.button, // Standard button text style
-                        )
-                    }
-                )
+                TextButton(onClick = { showDialog = false }) {
+                    Text(
+                        text = "OK",
+                        style = MaterialTheme.typography.button
+                    )
+                }
             },
-            modifier = Modifier.padding(16.dp), // Add padding around the dialog content
-            shape = MaterialTheme.shapes.medium, // Rounded corners
-            backgroundColor = MaterialTheme.colors.surface, // Background color of the dialog
-            contentColor = MaterialTheme.colors.onSurface // Text color inside the dialog
+            modifier = Modifier.padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            backgroundColor = MaterialTheme.colors.surface
         )
     }
 }
@@ -134,14 +131,16 @@ fun TopAppBarContent() {
     TopAppBar(
         title = {
             Text(
-                text = "ARK Keyboard",
+                text = "ARKeyboard",
                 style = TextStyle(
-                    fontSize = 24.sp
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colors.onPrimary
                 )
             )
         },
-        backgroundColor = Color.Transparent, // Removed the background
-        elevation = 0.dp // Remove shadow/elevation as well
+        backgroundColor = MaterialTheme.colors.primary,
+        elevation = 8.dp
     )
 }
 
@@ -155,23 +154,26 @@ fun MainContent() {
             .fillMaxSize()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top) // Adjust spacing and alignment
+        verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.Top)
     ) {
-        Spacer(modifier = Modifier.height(80.dp)) // Add space to shift the content down slightly
+        Spacer(modifier = Modifier.height(80.dp))
 
-        TextField(
+        OutlinedTextField(
             value = text,
             onValueChange = setValue,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colors.surface, shape = RoundedCornerShape(12.dp)), // Use shape for rounded corners
             placeholder = {
                 Text(
-                    text = "Try here",
-                    style = TextStyle(fontSize = 16.sp) // Set the same size as input text
+                    text = "Type here...",
+                    style = TextStyle(fontSize = 16.sp, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
                 )
             },
-            textStyle = TextStyle(fontSize = 16.sp), // Set input text size to 16.sp
-            singleLine = true // Ensure the input does not expand vertically
+            textStyle = TextStyle(fontSize = 16.sp, color = MaterialTheme.colors.onSurface),
+            singleLine = true
         )
+
 
         Button(
             onClick = {
@@ -179,10 +181,14 @@ fun MainContent() {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
-            shape = RoundedCornerShape(50)
+                .height(50.dp),
+            colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text(text = "Enable Ark Keyboard")
+            Text(
+                text = "Enable ARKeyboard",
+                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            )
         }
 
         Button(
@@ -191,10 +197,15 @@ fun MainContent() {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
-            shape = RoundedCornerShape(50)
+                .height(50.dp),
+            colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.secondaryVariant),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text(text = "Select Ark Keyboard")
+            Text(
+                text = "Select ARKeyboard",
+                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            )
         }
     }
 }
+
