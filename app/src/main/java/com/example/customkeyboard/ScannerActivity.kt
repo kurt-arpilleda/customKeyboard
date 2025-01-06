@@ -60,6 +60,7 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.delay
+import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
 class ScannerActivity : ComponentActivity() {
@@ -228,7 +229,7 @@ class ScannerActivity : ComponentActivity() {
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
 
         val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient()
-        val executor = Executors.newCachedThreadPool() // Use cached thread pool for better performance.
+        val executor = Executors.newSingleThreadExecutor() // Use single thread executor for serialized processing.
 
         var lastImageHash by remember { mutableStateOf(0) }
         var boundingBox by remember { mutableStateOf<Rect?>(null) }
@@ -272,6 +273,7 @@ class ScannerActivity : ComponentActivity() {
                                 val imageAnalysis = ImageAnalysis.Builder()
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                     .setTargetResolution(android.util.Size(1280, 720))
+                                    .setTargetRotation(previewView.display.rotation) // Set target rotation based on display
                                     .build()
 
                                 imageAnalysis.setAnalyzer(executor) { imageProxy ->
@@ -395,7 +397,7 @@ class ScannerActivity : ComponentActivity() {
                                 if (boundingBox.width() > minWidth && boundingBox.height() > minHeight) {
                                     val isQRCode = barcode.format == Barcode.FORMAT_QR_CODE
 
-                                    val centerMargin = 0.5
+                                    val centerMargin = 0.55
                                     val centerRect = Rect(
                                         (imageWidth * centerMargin).toInt(),
                                         (imageHeight * centerMargin).toInt(),
@@ -405,11 +407,12 @@ class ScannerActivity : ComponentActivity() {
 
                                     // Check if the bounding box is within the center region of the image
                                     if (isBoundingBoxInCenterRegion(boundingBox, centerRect)) {
-                                        // Only trigger the scan if the frame is good
-                                        onBarcodeScanned(rawValue)
+                                        // Call onBarcodeScanned for each detected barcode
+                                        onBarcodeScanned(rawValue)  // First scan call
+                                        onBarcodeScanned(rawValue)  // Second scan call (for testing multiple calls)
+                                        onBarcodeScanned(rawValue)  // Third scan call (for testing multiple calls)
                                         onStateUpdated(currentImageHash, boundingBox, isQRCode)
                                         barcodeDetected = true
-                                        break
                                     }
                                 }
                             }
@@ -417,17 +420,17 @@ class ScannerActivity : ComponentActivity() {
 
                         // If no barcode is detected, do not call the onBarcodeScanned callback
                         if (!barcodeDetected) {
-//                            Log.d("ScannerActivity", "Barcode not detected or not in center region.")
+                            // Barcode not detected or not in center region, no scan callback
                         }
                     }
                     .addOnFailureListener {
-//                        Log.e("ScannerActivity", "Barcode scan failed: ${it.message}")
+                        // Handle scan failure
                     }
                     .addOnCompleteListener {
                         imageProxy.close()
                     }
             } else {
-//                Log.d("ScannerActivity", "Image is not focused enough, skipping scan.")
+                // Image is not focused enough, skipping scan.
                 imageProxy.close()
             }
         } else {
@@ -435,15 +438,15 @@ class ScannerActivity : ComponentActivity() {
         }
     }
 
-
     private fun calculateImageHash(imageProxy: ImageProxy): Int {
-        val image = imageProxy.image
-        val buffer = image?.planes?.get(0)?.buffer
-        val byteArray = ByteArray(buffer?.remaining() ?: 0)
-        buffer?.get(byteArray)
+        val image = imageProxy.image ?: return 0
+        val planes = image.planes
+        if (planes.isEmpty()) return 0
 
-        // Return a hash of the image content for determining stability
-        return byteArray.contentHashCode()
+        val buffer: ByteBuffer = planes[0].buffer
+        val bytes = ByteArray(buffer.capacity())
+        buffer.get(bytes)
+        return bytes.contentHashCode()
     }
     // Function to check if the bounding box is inside the center region
     private fun isBoundingBoxInCenterRegion(boundingBox: Rect, centerRegion: Rect): Boolean {
