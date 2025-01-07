@@ -374,6 +374,10 @@ class ScannerActivity : ComponentActivity() {
     }
 
 
+    private var lastScannedBarcode: String? = null
+    private var barcodeConsistencyCounter = 0
+    private val consistencyThreshold = 3  // Number of consecutive frames with the same barcode value
+
     private fun processImageProxy(
         imageProxy: ImageProxy,
         barcodeScanner: BarcodeScanner,
@@ -417,9 +421,20 @@ class ScannerActivity : ComponentActivity() {
 
                                     // Check if the bounding box is within the center region of the image
                                     if (isBoundingBoxInCenterRegion(boundingBox, centerRect)) {
-                                        // Call onBarcodeScanned for each detected barcode
-                                        onBarcodeScanned(rawValue)
-                                        onStateUpdated(currentImageHash, boundingBox, isQRCode)
+                                        // Compare with the last scanned barcode
+                                        if (lastScannedBarcode == rawValue) {
+                                            barcodeConsistencyCounter++
+                                        } else {
+                                            lastScannedBarcode = rawValue
+                                            barcodeConsistencyCounter = 1
+                                        }
+
+                                        // Trigger onBarcodeScanned only if the barcode is consistent
+                                        if (barcodeConsistencyCounter >= consistencyThreshold) {
+                                            onBarcodeScanned(rawValue)
+                                            onStateUpdated(currentImageHash, boundingBox, isQRCode)
+                                        }
+
                                         barcodeDetected = true
                                     }
                                 }
@@ -445,6 +460,7 @@ class ScannerActivity : ComponentActivity() {
             imageProxy.close()
         }
     }
+
 
     private fun calculateImageHash(imageProxy: ImageProxy): Int {
         val image = imageProxy.image ?: return 0
