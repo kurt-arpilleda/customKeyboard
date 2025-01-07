@@ -84,7 +84,7 @@ class IMEService : LifecycleInputMethodService(),
                 // Add to the received codes list
                 receivedCodes.add(scannedCode)
 
-                Log.d("IMEService", "Received scanned code: $scannedCode")
+//                Log.d("IMEService", "Received scanned code: $scannedCode")
 
                 // Post a delayed action to process the most frequent or last code
                 Handler(Looper.getMainLooper()).postDelayed({
@@ -121,7 +121,7 @@ class IMEService : LifecycleInputMethodService(),
                     sendKeyEvent(enterKeyUpEvent)
                 }
 
-                Log.d("IMEService", "Committed code: $it")
+//                Log.d("IMEService", "Committed code: $it")
 
                 // Clear the frequency map and received codes list after committing
                 codeFrequencyMap.clear()
