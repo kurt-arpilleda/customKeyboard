@@ -1,10 +1,13 @@
 package com.example.customkeyboard
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
 import android.util.Patterns
 import androidx.activity.ComponentActivity
@@ -289,6 +292,12 @@ class ScannerActivity : ComponentActivity() {
 
                                         // If a barcode is detected, show the center line
                                         showCenterLine = true
+
+                                        // Trigger vibration when a barcode is detected and center line is shown
+                                        if (showCenterLine) {
+                                            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                                            vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+                                        }
                                     }
                                 }
 
@@ -364,6 +373,7 @@ class ScannerActivity : ComponentActivity() {
         }
     }
 
+
     private fun processImageProxy(
         imageProxy: ImageProxy,
         barcodeScanner: BarcodeScanner,
@@ -408,9 +418,7 @@ class ScannerActivity : ComponentActivity() {
                                     // Check if the bounding box is within the center region of the image
                                     if (isBoundingBoxInCenterRegion(boundingBox, centerRect)) {
                                         // Call onBarcodeScanned for each detected barcode
-                                        onBarcodeScanned(rawValue)  // First scan call
-                                        onBarcodeScanned(rawValue)  // Second scan call (for testing multiple calls)
-                                        onBarcodeScanned(rawValue)  // Third scan call (for testing multiple calls)
+                                        onBarcodeScanned(rawValue)
                                         onStateUpdated(currentImageHash, boundingBox, isQRCode)
                                         barcodeDetected = true
                                     }
