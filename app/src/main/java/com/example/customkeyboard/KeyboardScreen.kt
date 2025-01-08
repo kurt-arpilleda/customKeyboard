@@ -41,6 +41,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import android.view.inputmethod.InputMethodManager
+import androidx.compose.ui.platform.LocalContext
+
 @Composable
 fun KeyboardScreen() {
     val alphabeticKeysMatrix = arrayOf(
@@ -64,18 +67,30 @@ fun KeyboardScreen() {
         }
     }
 
-
     Column(
         modifier = Modifier
             .background(Color(0xFFA2ABBA))
             .fillMaxWidth(),
     ) {
-        // Add a row for the top-right corner icon
+        // Add a row for the top-left and top-right corner icons
         Row(
             modifier = Modifier
                 .fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
+            horizontalArrangement = Arrangement.SpaceBetween // Space out the icons
         ) {
+            IconButton(
+                onClick = {
+                    val imm = context.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.showInputMethodPicker() // Show the input method picker dialog
+                }
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.changekeyboard), // Replace with your keyboard icon resource
+                    contentDescription = "Keyboard Icon",
+                    modifier = Modifier.size(25.dp)
+                )
+            }
+
             IconButton(
                 onClick = {
                     navigateToScanner.value = true // Set flag to true to trigger the intent
@@ -84,7 +99,7 @@ fun KeyboardScreen() {
                 Icon(
                     painter = painterResource(id = R.drawable.barcodescan),
                     contentDescription = "QR Code Scanner Icon",
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(25.dp)
                 )
             }
         }
