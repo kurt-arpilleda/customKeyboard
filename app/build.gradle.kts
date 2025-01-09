@@ -68,7 +68,8 @@ dependencies {
     implementation("androidx.camera:camera-camera2:${camerax_version}")
     implementation("androidx.camera:camera-lifecycle:${camerax_version}")
     implementation("androidx.camera:camera-view:${camerax_version}")
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation ("com.google.zxing:core:3.5.1")
+    implementation ("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("com.google.accompanist:accompanist-permissions:0.33.1-alpha")
 
 }

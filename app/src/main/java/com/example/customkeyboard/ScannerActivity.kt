@@ -1,21 +1,15 @@
 package com.example.customkeyboard
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
-import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.util.Log
 import android.util.Patterns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -27,7 +21,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -58,13 +50,7 @@ import androidx.core.content.ContextCompat
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import com.google.mlkit.vision.barcode.BarcodeScanner
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.delay
-import java.nio.ByteBuffer
-import java.util.concurrent.Executors
 
 class ScannerActivity : ComponentActivity() {
 
@@ -230,13 +216,6 @@ class ScannerActivity : ComponentActivity() {
     ) {
         val context = LocalContext.current
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-
-        val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient()
-        val executor = Executors.newSingleThreadExecutor() // Use single thread executor for serialized processing.
-
-        var lastImageHash by remember { mutableStateOf(0) }
-        var boundingBox by remember { mutableStateOf<Rect?>(null) }
-        var isQRCode by remember { mutableStateOf(false) }
         var delayCompleted by remember { mutableStateOf(false) }
         var showCenterLine by remember { mutableStateOf(false) } // State to control the center line visibility
 
@@ -278,28 +257,6 @@ class ScannerActivity : ComponentActivity() {
                                     .setTargetResolution(android.util.Size(1280, 720))
                                     .setTargetRotation(previewView.display.rotation) // Set target rotation based on display
                                     .build()
-
-                                imageAnalysis.setAnalyzer(executor) { imageProxy ->
-                                    processImageProxy(
-                                        imageProxy,
-                                        barcodeScanner,
-                                        onBarcodeScanned,
-                                        lastImageHash
-                                    ) { newImageHash, detectedBoundingBox, detectedIsQRCode ->
-                                        lastImageHash = newImageHash
-                                        boundingBox = detectedBoundingBox
-                                        isQRCode = detectedIsQRCode
-
-                                        // If a barcode is detected, show the center line
-                                        showCenterLine = true
-
-                                        // Trigger vibration when a barcode is detected and center line is shown
-                                        if (showCenterLine) {
-                                            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                                            vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
-                                        }
-                                    }
-                                }
 
                                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
@@ -372,118 +329,6 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
-    private var lastScannedBarcode: String? = null
-    private var barcodeConsistencyCounter = 0
-    private val consistencyThreshold = 3  // Number of consecutive frames with the same barcode value
-
-    private fun processImageProxy(
-        imageProxy: ImageProxy,
-        barcodeScanner: BarcodeScanner,
-        onBarcodeScanned: (String) -> Unit,
-        lastImageHash: Int,
-        onStateUpdated: (Int, Rect?, Boolean) -> Unit
-    ) {
-        val image = InputImage.fromMediaImage(imageProxy.image!!, imageProxy.imageInfo.rotationDegrees)
-        val currentImageHash = calculateImageHash(imageProxy)
-
-        if (currentImageHash != lastImageHash) {
-            // Check image sharpness before processing
-            if (isImageFocused(imageProxy)) {
-                barcodeScanner.process(image)
-                    .addOnSuccessListener { barcodes ->
-                        var barcodeDetected = false
-                        for (barcode in barcodes) {
-                            val rawValue = barcode.rawValue
-                            val boundingBox = barcode.boundingBox
-
-                            if (rawValue != null && boundingBox != null) {
-                                // Get the camera feed resolution
-                                val imageWidth = imageProxy.width
-                                val imageHeight = imageProxy.height
-
-                                // Set a threshold as a percentage of the resolution
-                                val minWidth = imageWidth * 0.25f
-                                val minHeight = imageHeight * 0.1f
-
-                                // Check if the bounding box is sufficiently large based on resolution
-                                if (boundingBox.width() > minWidth && boundingBox.height() > minHeight) {
-                                    val isQRCode = barcode.format == Barcode.FORMAT_QR_CODE
-
-                                    val centerMargin = 0.55
-                                    val centerRect = Rect(
-                                        (imageWidth * centerMargin).toInt(),
-                                        (imageHeight * centerMargin).toInt(),
-                                        (imageWidth * (1 - centerMargin)).toInt(),
-                                        (imageHeight * (1 - centerMargin)).toInt()
-                                    )
-
-                                    // Check if the bounding box is within the center region of the image
-                                    if (isBoundingBoxInCenterRegion(boundingBox, centerRect)) {
-                                        // Compare with the last scanned barcode
-                                        if (lastScannedBarcode == rawValue) {
-                                            barcodeConsistencyCounter++
-                                        } else {
-                                            lastScannedBarcode = rawValue
-                                            barcodeConsistencyCounter = 1
-                                        }
-
-                                        // Trigger onBarcodeScanned only if the barcode is consistent
-                                        if (barcodeConsistencyCounter >= consistencyThreshold) {
-                                            onBarcodeScanned(rawValue)
-                                            onStateUpdated(currentImageHash, boundingBox, isQRCode)
-                                        }
-
-                                        barcodeDetected = true
-                                    }
-                                }
-                            }
-                        }
-
-                        // If no barcode is detected, do not call the onBarcodeScanned callback
-                        if (!barcodeDetected) {
-                            // Barcode not detected or not in center region, no scan callback
-                        }
-                    }
-                    .addOnFailureListener {
-                        // Handle scan failure
-                    }
-                    .addOnCompleteListener {
-                        imageProxy.close()
-                    }
-            } else {
-                // Image is not focused enough, skipping scan.
-                imageProxy.close()
-            }
-        } else {
-            imageProxy.close()
-        }
-    }
-    private fun calculateImageHash(imageProxy: ImageProxy): Int {
-        val image = imageProxy.image ?: return 0
-        val planes = image.planes
-        if (planes.isEmpty()) return 0
-
-        val buffer: ByteBuffer = planes[0].buffer
-        val bytes = ByteArray(buffer.capacity())
-        buffer.get(bytes)
-        return bytes.contentHashCode()
-    }
-    // Function to check if the bounding box is inside the center region
-    private fun isBoundingBoxInCenterRegion(boundingBox: Rect, centerRegion: Rect): Boolean {
-        return boundingBox.intersect(centerRegion)
-    }
-    private fun isImageFocused(imageProxy: ImageProxy): Boolean {
-        val image = imageProxy.image
-        val width = image?.width ?: return false
-        val height = image?.height ?: return false
-
-        // Use 25% of image width and 12% of image height as thresholds
-        val minWidth = width * 0.25
-        val minHeight = height * 0.1
-
-        return width > minWidth && height > minHeight
-    }
-
     @Preview(showBackground = true)
     @Composable
     fun ScannerScreenPreview() {
