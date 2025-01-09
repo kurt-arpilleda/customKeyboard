@@ -48,7 +48,6 @@
         <service
             android:name=".IMEService"
             android:label="ARKeyboard"
-
             android:permission="android.permission.BIND_INPUT_METHOD"
             android:exported="false">
             <intent-filter>

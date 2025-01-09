@@ -275,7 +275,7 @@ class ScannerActivity : ComponentActivity() {
 
                                 val imageAnalysis = ImageAnalysis.Builder()
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                    .setTargetResolution(android.util.Size(1280, 720))
+                                    .setTargetResolution(android.util.Size(1920, 1080))
                                     .setTargetRotation(previewView.display.rotation) // Set target rotation based on display
                                     .build()
 
@@ -405,7 +405,7 @@ class ScannerActivity : ComponentActivity() {
 
                                 // Set a threshold as a percentage of the resolution
                                 val minWidth = imageWidth * 0.25f
-                                val minHeight = imageHeight * 0.1f
+                                val minHeight = imageHeight * 0.12f
 
                                 // Check if the bounding box is sufficiently large based on resolution
                                 if (boundingBox.width() > minWidth && boundingBox.height() > minHeight) {
@@ -482,9 +482,9 @@ class ScannerActivity : ComponentActivity() {
         val width = image?.width ?: return false
         val height = image?.height ?: return false
 
-        // Use 30% of image width and 10% of image height as thresholds
+        // Use 20% of image width and 10% of image height as thresholds
         val minWidth = width * 0.25
-        val minHeight = height * 0.1
+        val minHeight = height * 0.12
 
         return width > minWidth && height > minHeight
     }
