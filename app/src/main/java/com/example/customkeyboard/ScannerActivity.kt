@@ -275,7 +275,7 @@ class ScannerActivity : ComponentActivity() {
 
                                 val imageAnalysis = ImageAnalysis.Builder()
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                    .setTargetResolution(android.util.Size(1920, 1080))
+                                    .setTargetResolution(android.util.Size(1280, 720))
                                     .setTargetRotation(previewView.display.rotation) // Set target rotation based on display
                                     .build()
 
@@ -376,7 +376,7 @@ class ScannerActivity : ComponentActivity() {
 
     private var lastScannedBarcode: String? = null
     private var barcodeConsistencyCounter = 0
-    private val consistencyThreshold = 6  // Number of consecutive frames with the same barcode value
+    private val consistencyThreshold = 3  // Number of consecutive frames with the same barcode value
 
     private fun processImageProxy(
         imageProxy: ImageProxy,
@@ -405,7 +405,7 @@ class ScannerActivity : ComponentActivity() {
 
                                 // Set a threshold as a percentage of the resolution
                                 val minWidth = imageWidth * 0.25f
-                                val minHeight = imageHeight * 0.12f
+                                val minHeight = imageHeight * 0.1f
 
                                 // Check if the bounding box is sufficiently large based on resolution
                                 if (boundingBox.width() > minWidth && boundingBox.height() > minHeight) {
@@ -460,8 +460,6 @@ class ScannerActivity : ComponentActivity() {
             imageProxy.close()
         }
     }
-
-
     private fun calculateImageHash(imageProxy: ImageProxy): Int {
         val image = imageProxy.image ?: return 0
         val planes = image.planes
@@ -476,7 +474,6 @@ class ScannerActivity : ComponentActivity() {
     private fun isBoundingBoxInCenterRegion(boundingBox: Rect, centerRegion: Rect): Boolean {
         return boundingBox.intersect(centerRegion)
     }
-
     private fun isImageFocused(imageProxy: ImageProxy): Boolean {
         val image = imageProxy.image
         val width = image?.width ?: return false
@@ -484,7 +481,7 @@ class ScannerActivity : ComponentActivity() {
 
         // Use 25% of image width and 12% of image height as thresholds
         val minWidth = width * 0.25
-        val minHeight = height * 0.12
+        val minHeight = height * 0.1
 
         return width > minWidth && height > minHeight
     }
