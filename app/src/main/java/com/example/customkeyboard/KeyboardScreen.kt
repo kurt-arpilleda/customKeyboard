@@ -3,6 +3,7 @@ package com.example.customkeyboard
 import android.app.Activity
 import android.content.Intent
 import android.view.KeyEvent
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,9 +41,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-import android.view.inputmethod.InputMethodManager
-import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun KeyboardScreen() {
