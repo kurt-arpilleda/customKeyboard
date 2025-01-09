@@ -376,7 +376,7 @@ class ScannerActivity : ComponentActivity() {
 
     private var lastScannedBarcode: String? = null
     private var barcodeConsistencyCounter = 0
-    private val consistencyThreshold = 5  // Number of consecutive frames with the same barcode value
+    private val consistencyThreshold = 6  // Number of consecutive frames with the same barcode value
 
     private fun processImageProxy(
         imageProxy: ImageProxy,
