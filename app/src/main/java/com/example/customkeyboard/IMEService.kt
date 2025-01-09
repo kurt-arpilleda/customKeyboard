@@ -23,9 +23,15 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.AbstractComposeView
 
+
 class IMEService : LifecycleInputMethodService(),
     ViewModelStoreOwner,
     SavedStateRegistryOwner {
+
+    companion object {
+        const val SCANNED_CODE_ACTION = "com.example.customkeyboard.SCANNED_CODE"
+        const val SCANNED_CODE_EXTRA = "SCANNED_CODE"
+    }
 
     override fun onCreateInputView(): View {
         val view = ComposeKeyboardView(this)
@@ -42,16 +48,31 @@ class IMEService : LifecycleInputMethodService(),
     override fun onCreate() {
         super.onCreate()
         savedStateRegistryController.performRestore(null)
+    }
 
-        // Register the broadcast receiver for scanned codes
-        val filter = IntentFilter("com.example.customkeyboard.SCANNED_CODE")
-        registerReceiver(scannedCodeReceiver, filter, RECEIVER_NOT_EXPORTED)
+    override fun onStartInput(attribute: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
+        super.onStartInput(attribute, restarting)
+
+        // Register the broadcast receiver when input starts.
+        val filter = IntentFilter(SCANNED_CODE_ACTION)
+        registerReceiver(scannedCodeReceiver, filter, if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_EXPORTED else 0)
+    }
+
+    override fun onFinishInput() {
+        super.onFinishInput()
+        try {
+            unregisterReceiver(scannedCodeReceiver)
+        } catch (e: IllegalArgumentException) {
+            // Handle the case where the receiver was not registered. This can happen in some edge cases.
+//            Log.w("IMEService", "Receiver not registered: ${e.message}")
+        }
+        codeFrequencyMap.clear()
+        receivedCodes.clear()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Unregister the broadcast receiver
-        unregisterReceiver(scannedCodeReceiver)
+        store.clear()
     }
 
     override val viewModelStore: ViewModelStore
@@ -67,26 +88,17 @@ class IMEService : LifecycleInputMethodService(),
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateRegistryController.savedStateRegistry
 
-    // Map to track the frequency of received codes
     private val codeFrequencyMap = mutableMapOf<String, Int>()
-
-    // List to track the order of received codes
     private val receivedCodes = mutableListOf<String>()
 
-    // BroadcastReceiver to handle scanned codes
     private val scannedCodeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val scannedCode = intent.getStringExtra("SCANNED_CODE")
-            if (!scannedCode.isNullOrEmpty()) {
-                // Increment the count for the scanned code
-                codeFrequencyMap[scannedCode] = codeFrequencyMap.getOrDefault(scannedCode, 0) + 1
+            val scannedCode = intent.getStringExtra(SCANNED_CODE_EXTRA)
+            scannedCode?.let { code ->
+                codeFrequencyMap[code] = codeFrequencyMap.getOrDefault(code, 0) + 1
+                receivedCodes.add(code)
+//                Log.d("IMEService", "Received scanned code: $code")
 
-                // Add to the received codes list
-                receivedCodes.add(scannedCode)
-
-//                Log.d("IMEService", "Received scanned code: $scannedCode")
-
-                // Post a delayed action to process the most frequent or last code
                 Handler(Looper.getMainLooper()).postDelayed({
                     processCode()
                 }, 1000)
@@ -96,34 +108,20 @@ class IMEService : LifecycleInputMethodService(),
 
     private fun processCode() {
         if (codeFrequencyMap.isNotEmpty()) {
-            // Determine if there are duplicates
             val hasDuplicates = codeFrequencyMap.values.any { it > 1 }
-
             val codeToCommit = if (hasDuplicates) {
-                // Find the code with the highest frequency
                 codeFrequencyMap.maxByOrNull { it.value }?.key
             } else {
-                // No duplicates, get the last received code
                 receivedCodes.lastOrNull()
             }
 
             codeToCommit?.let {
                 currentInputConnection?.apply {
-                    // Commit the selected code
                     commitText(it, 1)
-
-                    // Simulate the "Enter" key press (KeyEvent.KEYCODE_ENTER)
-                    val enterKeyEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)
-                    sendKeyEvent(enterKeyEvent)
-
-                    // Simulate key up for "Enter" to complete the action
-                    val enterKeyUpEvent = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER)
-                    sendKeyEvent(enterKeyUpEvent)
+                    sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
+                    sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
                 }
-
 //                Log.d("IMEService", "Committed code: $it")
-
-                // Clear the frequency map and received codes list after committing
                 codeFrequencyMap.clear()
                 receivedCodes.clear()
             }
