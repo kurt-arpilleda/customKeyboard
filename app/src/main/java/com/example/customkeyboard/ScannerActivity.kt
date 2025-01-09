@@ -482,7 +482,7 @@ class ScannerActivity : ComponentActivity() {
         val width = image?.width ?: return false
         val height = image?.height ?: return false
 
-        // Use 20% of image width and 10% of image height as thresholds
+        // Use 25% of image width and 12% of image height as thresholds
         val minWidth = width * 0.25
         val minHeight = height * 0.12
 
