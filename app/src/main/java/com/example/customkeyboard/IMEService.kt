@@ -23,7 +23,6 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.AbstractComposeView
 
-
 class IMEService : LifecycleInputMethodService(),
 
     ViewModelStoreOwner,
@@ -113,7 +112,6 @@ class IMEService : LifecycleInputMethodService(),
         }
     }
 }
-
 // Custom Compose view for the keyboard
 class ComposeKeyboardView(context: Context) : AbstractComposeView(context) {
 
