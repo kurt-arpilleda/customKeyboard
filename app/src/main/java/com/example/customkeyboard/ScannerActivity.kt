@@ -372,8 +372,6 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
-
-
     private var lastScannedBarcode: String? = null
     private var barcodeConsistencyCounter = 0
     private val consistencyThreshold = 3  // Number of consecutive frames with the same barcode value
