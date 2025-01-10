@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.customkeyboard"
         minSdk = 28
         targetSdk = 34
-        versionCode = 12
-        versionName = "2.1"
+        versionCode = 13
+        versionName = "2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -71,5 +71,4 @@ dependencies {
     implementation ("com.google.zxing:core:3.5.1")
     implementation ("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("com.google.accompanist:accompanist-permissions:0.33.1-alpha")
-
 }
