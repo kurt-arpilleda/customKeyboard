@@ -368,18 +368,21 @@ class ScannerActivity : ComponentActivity() {
             val startX = image.width / 4
             val startY = image.height / 4
 
+            // Crop to the center region (reduced size)
             val croppedData = cropImage(data, image.width, image.height, startX, startY, centerRegionWidth, centerRegionHeight)
 
-            val rotatedData = rotateImageData(croppedData, centerRegionHeight, centerRegionWidth)
+            // Optionally, rotate the data if needed (ensure it's correctly adjusted for barcode orientation)
+            val rotatedData = rotateImageData(croppedData, centerRegionWidth, centerRegionHeight)
 
+            // Create a luminance source for the center region only
             val source = PlanarYUVLuminanceSource(
                 rotatedData,
-                centerRegionHeight,
                 centerRegionWidth,
+                centerRegionHeight,
                 0,
                 0,
-                centerRegionHeight,
                 centerRegionWidth,
+                centerRegionHeight,
                 false
             )
 
@@ -389,6 +392,7 @@ class ScannerActivity : ComponentActivity() {
                 val result = reader.decodeWithState(binaryBitmap)
                 onBarcodeScanned(result.text)
             } catch (e: NotFoundException) {
+                // If no barcode is found, do nothing or log the failure
             } finally {
                 image.close()
             }
@@ -424,7 +428,8 @@ class ScannerActivity : ComponentActivity() {
             return rotatedData
         }
     }
-    @Preview(showBackground = true)
+
+   @Preview(showBackground = true)
     @Composable
     fun ScannerScreenPreview() {
         ScannerScreen()
