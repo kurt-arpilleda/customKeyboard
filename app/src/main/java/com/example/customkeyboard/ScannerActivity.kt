@@ -1,15 +1,20 @@
 package com.example.customkeyboard
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.graphics.ImageFormat
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
 import android.util.Patterns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -203,6 +208,7 @@ class ScannerActivity : ComponentActivity() {
             delay(500)
             delayCompleted = true
         }
+
         LaunchedEffect(flashlightOn) {
             val cameraProvider = cameraProviderFuture.get()
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -213,6 +219,7 @@ class ScannerActivity : ComponentActivity() {
 
             cameraControl.enableTorch(flashlightOn)
         }
+
         Box(modifier = Modifier.fillMaxSize()) {
             if (delayCompleted) {
                 Box(
@@ -225,6 +232,7 @@ class ScannerActivity : ComponentActivity() {
                             cameraProviderFuture.addListener({
                                 val cameraProvider = cameraProviderFuture.get()
                                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
                                 val preview = androidx.camera.core.Preview.Builder().build().also {
                                     it.setSurfaceProvider(previewView.surfaceProvider)
                                 }
@@ -241,17 +249,39 @@ class ScannerActivity : ComponentActivity() {
                                     .also {
                                         it.setAnalyzer(
                                             ContextCompat.getMainExecutor(ctx),
-                                            BarcodeAnalyzer(onBarcodeScanned)
+                                            BarcodeAnalyzer(
+                                                onBarcodeScanned = {
+                                                    onBarcodeScanned(it)  // Trigger the callback
+                                                    showCenterLine = true  // Show the center line when barcode is scanned
+
+                                                    // Trigger vibration on barcode detection
+                                                    val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                        vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+                                                    } else {
+                                                        vibrator.vibrate(100) // For devices below Android O
+                                                    }
+                                                }
+                                            )
                                         )
                                     }
 
-                                cameraProvider.unbindAll()
-                                cameraProvider.bindToLifecycle(
+                                val meterFactory = previewView.meteringPointFactory
+                                val centerX = previewView.width / 2f
+                                val centerY = previewView.height / 2f
+                                val centerMeteringPoint = meterFactory.createPoint(centerX, centerY)
+
+                                val cameraControl = cameraProvider.bindToLifecycle(
                                     ctx as ComponentActivity,
                                     cameraSelector,
                                     preview,
                                     imageAnalyzer
-                                )
+                                ).cameraControl
+
+                                val action = FocusMeteringAction.Builder(centerMeteringPoint)
+                                    .build()
+                                cameraControl.startFocusAndMetering(action)
+
                             }, ContextCompat.getMainExecutor(ctx))
 
                             previewView
@@ -317,25 +347,19 @@ class ScannerActivity : ComponentActivity() {
             val data = ByteArray(buffer.remaining())
             buffer.get(data)
 
-            // Define the center region size (e.g., 50% of the original image)
-            val centerRegionWidth = (image.width * 0.5).toInt()
-            val centerRegionHeight = (image.height * 0.5).toInt()
+            val centerRegionWidth = image.width / 2
+            val centerRegionHeight = image.height / 2
+            val startX = image.width / 4
+            val startY = image.height / 4
 
-            // Calculate the coordinates for the center region
-            val xOffset = (image.width - centerRegionWidth) / 2
-            val yOffset = (image.height - centerRegionHeight) / 2
+            val croppedData = cropImage(data, image.width, image.height, startX, startY, centerRegionWidth, centerRegionHeight)
 
-            // Crop the image data to the center region
-            val croppedData = cropImageData(data, image.width, image.height, xOffset, yOffset, centerRegionWidth, centerRegionHeight)
+            val rotatedData = rotateImageData(croppedData, centerRegionHeight, centerRegionWidth)
 
-            // Rotate the cropped data by 90 degrees (clockwise)
-            val rotatedData = rotateImageData(croppedData, centerRegionWidth, centerRegionHeight)
-
-            // Create a PlanarYUVLuminanceSource with the rotated cropped data
             val source = PlanarYUVLuminanceSource(
                 rotatedData,
-                centerRegionHeight,  // New width after rotation
-                centerRegionWidth,   // New height after rotation
+                centerRegionHeight,
+                centerRegionWidth,
                 0,
                 0,
                 centerRegionHeight,
@@ -343,29 +367,23 @@ class ScannerActivity : ComponentActivity() {
                 false
             )
 
-            // Create a BinaryBitmap from the luminance source
             val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
 
             try {
-                // Attempt to decode the barcode
                 val result = reader.decodeWithState(binaryBitmap)
-                onBarcodeScanned(result.text)  // Callback when a barcode is scanned
+                onBarcodeScanned(result.text)
             } catch (e: NotFoundException) {
-                // Barcode not found, do nothing
             } finally {
-                // Always close the image to avoid memory leaks
                 image.close()
             }
         }
 
-        // Function to crop the image data to the center region
-        private fun cropImageData(data: ByteArray, width: Int, height: Int, xOffset: Int, yOffset: Int, cropWidth: Int, cropHeight: Int): ByteArray {
+        private fun cropImage(data: ByteArray, width: Int, height: Int, startX: Int, startY: Int, cropWidth: Int, cropHeight: Int): ByteArray {
             val croppedData = ByteArray(cropWidth * cropHeight)
 
-            // Crop the image data to the specified center region
             for (y in 0 until cropHeight) {
                 for (x in 0 until cropWidth) {
-                    val oldIndex = (y + yOffset) * width + (x + xOffset)
+                    val oldIndex = (startY + y) * width + (startX + x)
                     val newIndex = y * cropWidth + x
                     croppedData[newIndex] = data[oldIndex]
                 }
@@ -374,11 +392,9 @@ class ScannerActivity : ComponentActivity() {
             return croppedData
         }
 
-        // Function to rotate the image data by 90 degrees clockwise
         private fun rotateImageData(data: ByteArray, width: Int, height: Int): ByteArray {
             val rotatedData = ByteArray(data.size)
 
-            // Rotate the image 90 degrees clockwise
             for (y in 0 until height) {
                 for (x in 0 until width) {
                     val newX = height - y - 1
