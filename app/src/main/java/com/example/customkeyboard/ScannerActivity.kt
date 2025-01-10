@@ -2,38 +2,26 @@ package com.example.customkeyboard
 
 import android.Manifest
 import android.content.Intent
+import android.graphics.ImageFormat
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.util.Patterns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -50,7 +38,11 @@ import androidx.core.content.ContextCompat
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import com.google.zxing.*
+import com.google.zxing.common.HybridBinarizer
+import com.journeyapps.barcodescanner.CameraPreview
 import kotlinx.coroutines.delay
+import java.nio.ByteBuffer
 
 class ScannerActivity : ComponentActivity() {
 
@@ -70,9 +62,8 @@ class ScannerActivity : ComponentActivity() {
         var cameraHeight by remember { mutableStateOf(80.dp) }
 
         val context = LocalContext.current
-        var flashlightOn by remember { mutableStateOf(false) } // State for flashlight
+        var flashlightOn by remember { mutableStateOf(false) }
 
-        // Request camera permission and activate camera when permission is granted
         LaunchedEffect(cameraPermissionState.status.isGranted) {
             if (cameraPermissionState.status.isGranted) {
                 isCameraActive = true
@@ -81,18 +72,14 @@ class ScannerActivity : ComponentActivity() {
             }
         }
 
-        // Show Camera Scanner when active, filling the entire screen
         Box(modifier = Modifier.fillMaxSize()) {
             if (isCameraActive) {
                 CameraScanner(
                     onBarcodeScanned = { barcodeValue ->
-                        // Check if scanned code is a valid URL
                         if (Patterns.WEB_URL.matcher(barcodeValue).matches()) {
-                            // If it is a URL, open it in the browser
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(barcodeValue))
                             context.startActivity(intent)
                         } else {
-                            // If it's not a URL, send the scanned result via a broadcast
                             val intent = Intent().apply {
                                 action = "com.example.customkeyboard.SCANNED_CODE"
                                 putExtra("SCANNED_CODE", barcodeValue)
@@ -103,20 +90,17 @@ class ScannerActivity : ComponentActivity() {
                     },
                     cameraWidth = cameraWidth,
                     cameraHeight = cameraHeight,
-                    flashlightOn = flashlightOn // Pass the flashlight state to CameraScanner
+                    flashlightOn = flashlightOn
                 )
             }
 
-            // Optional UI elements (e.g., instructions, icons)
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(26.dp)
             ) {
-                // "Scan Here" section (this part stays the same)
                 Row(
-                    modifier = Modifier
-                        .padding(bottom = 20.dp),
+                    modifier = Modifier.padding(bottom = 20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -137,15 +121,13 @@ class ScannerActivity : ComponentActivity() {
                     fontSize = 12.sp
                 )
 
-                // Spacer to push the icons down to the bottom
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Row for the QR, Barcode, and Flashlight icons at the bottom with border
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth() // Ensures the icons are aligned to the bottom of the screen
-                        .padding(bottom = 16.dp), // Bottom padding for icons
-                    horizontalArrangement = Arrangement.Center, // Center the icons
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -159,14 +141,13 @@ class ScannerActivity : ComponentActivity() {
                             tint = Color.White,
                             modifier = Modifier
                                 .clickable {
-                                    // When QR icon is clicked, change camera size
                                     cameraWidth = 250.dp
                                     cameraHeight = 250.dp
                                 }
                                 .size(40.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(16.dp)) // Spacer between the icons
+                    Spacer(modifier = Modifier.width(16.dp))
                     Box(
                         modifier = Modifier
                             .border(2.dp, Color.White, RoundedCornerShape(8.dp))
@@ -178,14 +159,13 @@ class ScannerActivity : ComponentActivity() {
                             tint = Color.White,
                             modifier = Modifier
                                 .clickable {
-                                    // When Barcode icon is clicked, reset camera size
                                     cameraWidth = 330.dp
                                     cameraHeight = 80.dp
                                 }
                                 .size(40.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(16.dp)) // Spacer between the icons
+                    Spacer(modifier = Modifier.width(16.dp))
                     Box(
                         modifier = Modifier
                             .border(2.dp, Color.White, RoundedCornerShape(8.dp))
@@ -194,10 +174,10 @@ class ScannerActivity : ComponentActivity() {
                         Icon(
                             painter = painterResource(id = R.drawable.flash_icon),
                             contentDescription = null,
-                            tint = if (flashlightOn) Color.Yellow else Color.White, // Change tint based on flashlight status
+                            tint = if (flashlightOn) Color.Yellow else Color.White,
                             modifier = Modifier
                                 .clickable {
-                                    flashlightOn = !flashlightOn // Toggle flashlight on/off
+                                    flashlightOn = !flashlightOn
                                 }
                                 .size(40.dp)
                         )
@@ -212,19 +192,17 @@ class ScannerActivity : ComponentActivity() {
         onBarcodeScanned: (String) -> Unit,
         cameraWidth: Dp,
         cameraHeight: Dp,
-        flashlightOn: Boolean // Add flashlight state parameter
+        flashlightOn: Boolean
     ) {
         val context = LocalContext.current
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
         var delayCompleted by remember { mutableStateOf(false) }
-        var showCenterLine by remember { mutableStateOf(false) } // State to control the center line visibility
+        var showCenterLine by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
             delay(500)
             delayCompleted = true
         }
-
-        // Set flashlight on/off based on state
         LaunchedEffect(flashlightOn) {
             val cameraProvider = cameraProviderFuture.get()
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -233,17 +211,12 @@ class ScannerActivity : ComponentActivity() {
                 cameraSelector
             ).cameraControl
 
-            if (flashlightOn) {
-                cameraControl.enableTorch(true)
-            } else {
-                cameraControl.enableTorch(false)
-            }
+            cameraControl.enableTorch(flashlightOn)
         }
-
         Box(modifier = Modifier.fillMaxSize()) {
             if (delayCompleted) {
                 Box(
-                    modifier = Modifier.fillMaxSize() // Ensure the camera fills the screen
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     AndroidView(
                         factory = { ctx ->
@@ -251,38 +224,34 @@ class ScannerActivity : ComponentActivity() {
 
                             cameraProviderFuture.addListener({
                                 val cameraProvider = cameraProviderFuture.get()
-
-                                val imageAnalysis = ImageAnalysis.Builder()
-                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                    .setTargetResolution(android.util.Size(1280, 720))
-                                    .setTargetRotation(previewView.display.rotation) // Set target rotation based on display
-                                    .build()
-
                                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                                val meteringPointFactory = previewView.meteringPointFactory
-                                val center = meteringPointFactory.createPoint(0.5f, 0.5f)
-                                val action = FocusMeteringAction.Builder(center).build()
-
                                 val preview = androidx.camera.core.Preview.Builder().build().also {
                                     it.setSurfaceProvider(previewView.surfaceProvider)
                                 }
+
+                                val imageAnalyzer = ImageAnalysis.Builder()
+                                    .setTargetResolution(
+                                        android.util.Size(
+                                            cameraWidth.value.toInt(),
+                                            cameraHeight.value.toInt()
+                                        )
+                                    )
+                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .build()
+                                    .also {
+                                        it.setAnalyzer(
+                                            ContextCompat.getMainExecutor(ctx),
+                                            BarcodeAnalyzer(onBarcodeScanned)
+                                        )
+                                    }
 
                                 cameraProvider.unbindAll()
                                 cameraProvider.bindToLifecycle(
                                     ctx as ComponentActivity,
                                     cameraSelector,
                                     preview,
-                                    imageAnalysis
+                                    imageAnalyzer
                                 )
-
-                                val cameraControl = cameraProvider.bindToLifecycle(
-                                    ctx,
-                                    cameraSelector,
-                                    preview
-                                ).cameraControl
-                                cameraControl.startFocusAndMetering(action)
-
                             }, ContextCompat.getMainExecutor(ctx))
 
                             previewView
@@ -308,9 +277,8 @@ class ScannerActivity : ComponentActivity() {
                             blendMode = BlendMode.Clear
                         )
 
-                        // Draw the horizontal line only when a barcode is detected
                         if (showCenterLine) {
-                            val centerLineY = (size.height / 2) // Middle of the screen vertically
+                            val centerLineY = (size.height / 2)
                             drawLine(
                                 color = Color.Green,
                                 start = Offset(centerX, centerLineY),
@@ -329,11 +297,104 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
+
+    class BarcodeAnalyzer(private val onBarcodeScanned: (String) -> Unit) : ImageAnalysis.Analyzer {
+
+        private val reader = MultiFormatReader().apply {
+            setHints(
+                mapOf(
+                    DecodeHintType.POSSIBLE_FORMATS to listOf(
+                        BarcodeFormat.CODE_39, // Add other formats if needed
+                        BarcodeFormat.QR_CODE
+                    ),
+                    DecodeHintType.TRY_HARDER to true  // Increases sensitivity for smaller barcodes
+                )
+            )
+        }
+
+        override fun analyze(image: ImageProxy) {
+            val buffer: ByteBuffer = image.planes[0].buffer
+            val data = ByteArray(buffer.remaining())
+            buffer.get(data)
+
+            // Define the center region size (e.g., 50% of the original image)
+            val centerRegionWidth = (image.width * 0.5).toInt()
+            val centerRegionHeight = (image.height * 0.5).toInt()
+
+            // Calculate the coordinates for the center region
+            val xOffset = (image.width - centerRegionWidth) / 2
+            val yOffset = (image.height - centerRegionHeight) / 2
+
+            // Crop the image data to the center region
+            val croppedData = cropImageData(data, image.width, image.height, xOffset, yOffset, centerRegionWidth, centerRegionHeight)
+
+            // Rotate the cropped data by 90 degrees (clockwise)
+            val rotatedData = rotateImageData(croppedData, centerRegionWidth, centerRegionHeight)
+
+            // Create a PlanarYUVLuminanceSource with the rotated cropped data
+            val source = PlanarYUVLuminanceSource(
+                rotatedData,
+                centerRegionHeight,  // New width after rotation
+                centerRegionWidth,   // New height after rotation
+                0,
+                0,
+                centerRegionHeight,
+                centerRegionWidth,
+                false
+            )
+
+            // Create a BinaryBitmap from the luminance source
+            val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+
+            try {
+                // Attempt to decode the barcode
+                val result = reader.decodeWithState(binaryBitmap)
+                onBarcodeScanned(result.text)  // Callback when a barcode is scanned
+            } catch (e: NotFoundException) {
+                // Barcode not found, do nothing
+            } finally {
+                // Always close the image to avoid memory leaks
+                image.close()
+            }
+        }
+
+        // Function to crop the image data to the center region
+        private fun cropImageData(data: ByteArray, width: Int, height: Int, xOffset: Int, yOffset: Int, cropWidth: Int, cropHeight: Int): ByteArray {
+            val croppedData = ByteArray(cropWidth * cropHeight)
+
+            // Crop the image data to the specified center region
+            for (y in 0 until cropHeight) {
+                for (x in 0 until cropWidth) {
+                    val oldIndex = (y + yOffset) * width + (x + xOffset)
+                    val newIndex = y * cropWidth + x
+                    croppedData[newIndex] = data[oldIndex]
+                }
+            }
+
+            return croppedData
+        }
+
+        // Function to rotate the image data by 90 degrees clockwise
+        private fun rotateImageData(data: ByteArray, width: Int, height: Int): ByteArray {
+            val rotatedData = ByteArray(data.size)
+
+            // Rotate the image 90 degrees clockwise
+            for (y in 0 until height) {
+                for (x in 0 until width) {
+                    val newX = height - y - 1
+                    val newY = x
+                    val oldIndex = y * width + x
+                    val newIndex = newY * height + newX
+                    rotatedData[newIndex] = data[oldIndex]
+                }
+            }
+
+            return rotatedData
+        }
+    }
     @Preview(showBackground = true)
     @Composable
     fun ScannerScreenPreview() {
         ScannerScreen()
     }
 }
-
-
