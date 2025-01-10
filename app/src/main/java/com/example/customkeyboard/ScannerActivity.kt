@@ -249,6 +249,8 @@ class ScannerActivity : ComponentActivity() {
                                         )
                                     )
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .setTargetResolution(android.util.Size(1280, 720))
+                                    .setTargetRotation(previewView.display.rotation)
                                     .build()
                                     .also {
                                         it.setAnalyzer(
@@ -420,6 +422,7 @@ class ScannerActivity : ComponentActivity() {
             return rotatedData
         }
     }
+
     @Preview(showBackground = true)
     @Composable
     fun ScannerScreenPreview() {
