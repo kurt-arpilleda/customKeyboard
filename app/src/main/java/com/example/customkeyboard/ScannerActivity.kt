@@ -84,7 +84,7 @@ class ScannerActivity : ComponentActivity() {
 
         val context = LocalContext.current
         var flashlightOn by remember { mutableStateOf(false) }
-        var isQRCodeMode by remember { mutableStateOf(true) } // Toggle for QR/Barcode mode
+        var isQrMode by remember { mutableStateOf(false) } // false = barcode, true = QR code
 
         LaunchedEffect(cameraPermissionState.status.isGranted) {
             if (cameraPermissionState.status.isGranted) {
@@ -158,13 +158,13 @@ class ScannerActivity : ComponentActivity() {
                             .padding(4.dp)
                     ) {
                         Icon(
-                            painter = painterResource(id = if (isQRCodeMode) R.drawable.qr_icon else R.drawable.barcode_icon),
+                            painter = painterResource(id = if (isQrMode) R.drawable.qr_icon else R.drawable.barcode_icon),
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier
                                 .clickable {
-                                    isQRCodeMode = !isQRCodeMode
-                                    if (isQRCodeMode) {
+                                    isQrMode = !isQrMode
+                                    if (isQrMode) {
                                         cameraWidth = 250.dp
                                         cameraHeight = 250.dp
                                     } else {
@@ -196,7 +196,6 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
-
     @Composable
     fun CameraScanner(
         onBarcodeScanned: (String) -> Unit,
@@ -297,7 +296,7 @@ class ScannerActivity : ComponentActivity() {
                     Canvas(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        val dimColor = Color.Black.copy(alpha = 0.7f)
+                        val dimColor = Color.Black.copy(alpha = 0.8f)
                         drawRect(color = dimColor)
 
                         val frameWidth = cameraWidth.toPx()
@@ -332,7 +331,6 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
-
     class BarcodeAnalyzer(private val onBarcodeScanned: (String) -> Unit) : ImageAnalysis.Analyzer {
 
         private val reader = MultiFormatReader().apply {
@@ -420,8 +418,7 @@ class ScannerActivity : ComponentActivity() {
             return rotatedData
         }
     }
-
-   @Preview(showBackground = true)
+    @Preview(showBackground = true)
     @Composable
     fun ScannerScreenPreview() {
         ScannerScreen()
