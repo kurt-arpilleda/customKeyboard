@@ -350,8 +350,11 @@ class ScannerActivity : ComponentActivity() {
             setHints(
                 mapOf(
                     DecodeHintType.POSSIBLE_FORMATS to listOf(
-                        BarcodeFormat.CODE_39, // Add other formats if needed
-                        BarcodeFormat.QR_CODE
+                        BarcodeFormat.CODE_39,
+                        BarcodeFormat.QR_CODE,
+                        BarcodeFormat.CODE_128,
+                        BarcodeFormat.EAN_13,
+                        BarcodeFormat.UPC_A,
                     ),
                     DecodeHintType.TRY_HARDER to true  // Increases sensitivity for smaller barcodes
                 )
