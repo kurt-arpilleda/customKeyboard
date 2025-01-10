@@ -84,6 +84,7 @@ class ScannerActivity : ComponentActivity() {
 
         val context = LocalContext.current
         var flashlightOn by remember { mutableStateOf(false) }
+        var isQRCodeMode by remember { mutableStateOf(true) } // Toggle for QR/Barcode mode
 
         LaunchedEffect(cameraPermissionState.status.isGranted) {
             if (cameraPermissionState.status.isGranted) {
@@ -157,31 +158,19 @@ class ScannerActivity : ComponentActivity() {
                             .padding(4.dp)
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.qr_icon),
+                            painter = painterResource(id = if (isQRCodeMode) R.drawable.qr_icon else R.drawable.barcode_icon),
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier
                                 .clickable {
-                                    cameraWidth = 250.dp
-                                    cameraHeight = 250.dp
-                                }
-                                .size(40.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Box(
-                        modifier = Modifier
-                            .border(2.dp, Color.White, RoundedCornerShape(8.dp))
-                            .padding(4.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.barcode_icon),
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier
-                                .clickable {
-                                    cameraWidth = 330.dp
-                                    cameraHeight = 80.dp
+                                    isQRCodeMode = !isQRCodeMode
+                                    if (isQRCodeMode) {
+                                        cameraWidth = 250.dp
+                                        cameraHeight = 250.dp
+                                    } else {
+                                        cameraWidth = 330.dp
+                                        cameraHeight = 80.dp
+                                    }
                                 }
                                 .size(40.dp)
                         )
