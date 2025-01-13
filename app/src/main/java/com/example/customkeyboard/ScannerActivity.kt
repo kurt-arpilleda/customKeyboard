@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.provider.Settings
 import android.util.Patterns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,7 +31,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.zxing.BarcodeFormat
@@ -73,7 +78,6 @@ class ScannerActivity : ComponentActivity() {
             ScannerScreen()
         }
     }
-
     @OptIn(ExperimentalPermissionsApi::class)
     @Composable
     fun ScannerScreen() {
@@ -85,12 +89,25 @@ class ScannerActivity : ComponentActivity() {
         val context = LocalContext.current
         var flashlightOn by remember { mutableStateOf(false) }
         var isQrMode by remember { mutableStateOf(false) } // false = barcode, true = QR code
+        var showPermissionDialog by remember { mutableStateOf(false) }
 
-        LaunchedEffect(cameraPermissionState.status.isGranted) {
-            if (cameraPermissionState.status.isGranted) {
-                isCameraActive = true
-            } else {
-                cameraPermissionState.launchPermissionRequest()
+        // Check permission status
+        LaunchedEffect(cameraPermissionState.status) {
+            when (cameraPermissionState.status) {
+                is PermissionStatus.Granted -> {
+                    // Permission granted
+                    isCameraActive = true
+                }
+                is PermissionStatus.Denied -> {
+                    if (!(cameraPermissionState.status as PermissionStatus.Denied).shouldShowRationale) {
+                        // Permission denied permanently (user checked "Don't ask again")
+                        showPermissionDialog = true
+                    } else {
+                        // Request permission again if the rationale can be shown
+                        cameraPermissionState.launchPermissionRequest()
+                    }
+                }
+                else -> Unit // Handle other statuses if necessary
             }
         }
 
@@ -194,8 +211,36 @@ class ScannerActivity : ComponentActivity() {
                     }
                 }
             }
+
+            // Show dialog if permission is denied permanently
+            if (showPermissionDialog) {
+                AlertDialog(
+                    onDismissRequest = { showPermissionDialog = false },
+                    title = { Text("Camera Permission Required") },
+                    text = { Text("Please enable camera permissions from the settings to use the scanner.") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                val uri = Uri.fromParts("package", context.packageName, null)
+                                intent.data = uri
+                                context.startActivity(intent)
+                            }
+                        ) {
+                            Text("Go to Settings", color = MaterialTheme.colors.primary)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showPermissionDialog = false }) {
+                            Text("Cancel", color = MaterialTheme.colors.primary)
+                        }
+                    }
+                )
+            }
+
         }
     }
+
     @Composable
     fun CameraScanner(
         onBarcodeScanned: (String) -> Unit,
@@ -249,8 +294,6 @@ class ScannerActivity : ComponentActivity() {
                                         )
                                     )
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                    .setTargetResolution(android.util.Size(1280, 720))
-                                    .setTargetRotation(previewView.display.rotation)
                                     .build()
                                     .also {
                                         it.setAnalyzer(
@@ -333,6 +376,7 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
+
     class BarcodeAnalyzer(private val onBarcodeScanned: (String) -> Unit) : ImageAnalysis.Analyzer {
 
         private val reader = MultiFormatReader().apply {
