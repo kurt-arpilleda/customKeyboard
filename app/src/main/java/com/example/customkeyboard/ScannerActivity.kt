@@ -401,26 +401,15 @@ class ScannerActivity : ComponentActivity() {
             val data = ByteArray(buffer.remaining())
             buffer.get(data)
 
-            val centerRegionWidth = image.width / 2
-            val centerRegionHeight = image.height / 2
-            val startX = image.width / 4
-            val startY = image.height / 4
-
-            // Crop to the center region (reduced size)
-            val croppedData = cropImage(data, image.width, image.height, startX, startY, centerRegionWidth, centerRegionHeight)
-
-            // Optionally, rotate the data if needed (ensure it's correctly adjusted for barcode orientation)
-            val rotatedData = rotateImageData(croppedData, centerRegionWidth, centerRegionHeight)
-
-            // Create a luminance source for the center region only
+            // Create a luminance source using the full image dimensions
             val source = PlanarYUVLuminanceSource(
-                rotatedData,
-                centerRegionWidth,
-                centerRegionHeight,
+                data,
+                image.width,
+                image.height,
                 0,
                 0,
-                centerRegionWidth,
-                centerRegionHeight,
+                image.width,
+                image.height,
                 false
             )
 
@@ -434,36 +423,6 @@ class ScannerActivity : ComponentActivity() {
             } finally {
                 image.close()
             }
-        }
-
-        private fun cropImage(data: ByteArray, width: Int, height: Int, startX: Int, startY: Int, cropWidth: Int, cropHeight: Int): ByteArray {
-            val croppedData = ByteArray(cropWidth * cropHeight)
-
-            for (y in 0 until cropHeight) {
-                for (x in 0 until cropWidth) {
-                    val oldIndex = (startY + y) * width + (startX + x)
-                    val newIndex = y * cropWidth + x
-                    croppedData[newIndex] = data[oldIndex]
-                }
-            }
-
-            return croppedData
-        }
-
-        private fun rotateImageData(data: ByteArray, width: Int, height: Int): ByteArray {
-            val rotatedData = ByteArray(data.size)
-
-            for (y in 0 until height) {
-                for (x in 0 until width) {
-                    val newX = height - y - 1
-                    val newY = x
-                    val oldIndex = y * width + x
-                    val newIndex = newY * height + newX
-                    rotatedData[newIndex] = data[oldIndex]
-                }
-            }
-
-            return rotatedData
         }
     }
 
