@@ -45,8 +45,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".CustomCaptureActivity"
+            android:screenOrientation="portrait"
+            tools:replace="screenOrientation" />
         <activity android:name=".ScannerActivity"
             android:label="QR Scanner"
+            android:screenOrientation="portrait"
             android:exported="true" />
         <service
             android:name=".IMEService"
