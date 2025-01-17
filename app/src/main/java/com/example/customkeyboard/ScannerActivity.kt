@@ -90,7 +90,9 @@ class ScannerActivity : ComponentActivity() {
             IntentIntegrator.EAN_13,
             IntentIntegrator.UPC_A,
             IntentIntegrator.EAN_8,
-            IntentIntegrator.CODE_128
+            IntentIntegrator.CODE_128,
+            IntentIntegrator.ITF,
+            IntentIntegrator.PDF_417
         )
         integrator.setPrompt("Volume Up: Flash On, Volume Down: Flash Off.")
         integrator.setBeepEnabled(true)
