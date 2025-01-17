@@ -49,6 +49,7 @@
             android:name=".CustomCaptureActivity"
             android:screenOrientation="portrait"
             tools:replace="screenOrientation" />
+
         <activity android:name=".ScannerActivity"
             android:label="QR Scanner"
             android:screenOrientation="portrait"
