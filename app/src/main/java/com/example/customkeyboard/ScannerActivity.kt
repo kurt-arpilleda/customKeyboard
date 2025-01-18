@@ -136,19 +136,28 @@ class ScannerActivity : ComponentActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
         if (result != null && result.contents != null) {
-            val barcodeValue = result.contents
-            // Vibrate the device when barcode is detected
-            vibrateDevice()
-            val intent = Intent().apply {
-                action = "com.example.customkeyboard.SCANNED_CODE"
-                putExtra("SCANNED_CODE", barcodeValue)
+            val scannedContent = result.contents
+
+            // Check if the scanned content is a valid URL
+            if (scannedContent.startsWith("http://") || scannedContent.startsWith("https://")) {
+                // It's a link, open it in the browser
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(scannedContent))
+                startActivity(intent)
+            } else {
+                // If it's not a URL, proceed with the default behavior (send broadcast, etc.)
+                vibrateDevice()
+                val intent = Intent().apply {
+                    action = "com.example.customkeyboard.SCANNED_CODE"
+                    putExtra("SCANNED_CODE", scannedContent)
+                }
+                sendBroadcast(intent)
+                finish()
             }
-            sendBroadcast(intent)
-            finish()
         } else {
             super.onActivityResult(requestCode, resultCode, data)
         }
     }
+
 
     private fun vibrateDevice() {
         val vibrator = getSystemService(Vibrator::class.java)
