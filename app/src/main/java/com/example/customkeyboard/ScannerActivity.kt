@@ -84,16 +84,7 @@ class ScannerActivity : ComponentActivity() {
 
     private fun startScanner() {
         val integrator = IntentIntegrator(this)
-        integrator.setDesiredBarcodeFormats(
-            IntentIntegrator.CODE_39,
-            IntentIntegrator.QR_CODE,
-            IntentIntegrator.EAN_13,
-            IntentIntegrator.UPC_A,
-            IntentIntegrator.EAN_8,
-            IntentIntegrator.CODE_128,
-            IntentIntegrator.ITF,
-            IntentIntegrator.PDF_417
-        )
+        integrator.setDesiredBarcodeFormats(IntentIntegrator.ALL_CODE_TYPES)
         integrator.setPrompt("Volume Up: Flash On, Volume Down: Flash Off.")
         integrator.setBeepEnabled(true)
         integrator.setBarcodeImageEnabled(true)
