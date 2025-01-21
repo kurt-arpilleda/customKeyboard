@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.customkeyboard"
         minSdk = 28
         targetSdk = 34
-        versionCode = 20
-        versionName = "2.9"
+        versionCode = 21
+        versionName = "3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
