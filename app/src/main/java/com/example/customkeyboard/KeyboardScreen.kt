@@ -61,6 +61,12 @@ fun KeyboardScreen() {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
+            if (context is Activity) {
+                context.overridePendingTransition(
+                    R.anim.animate_fade_enter,
+                    R.anim.animate_fade_exit
+                ) // Apply transition animation
+            }
             navigateToScanner.value = false // Reset the flag
         }
     }
