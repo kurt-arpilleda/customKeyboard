@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.customkeyboard"
         minSdk = 28
         targetSdk = 34
-        versionCode = 21
-        versionName = "3.0"
+        versionCode = 22
+        versionName = "3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -62,6 +62,6 @@ dependencies {
     implementation ("com.squareup.retrofit2:retrofit:2.11.0")
     implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation ("com.squareup.okhttp3:logging-interceptor:4.10.0")
-    implementation ("com.google.zxing:core:3.5.1")
+    implementation ("com.google.zxing:core:3.5.3")
     implementation ("com.journeyapps:zxing-android-embedded:4.3.0")
 }
