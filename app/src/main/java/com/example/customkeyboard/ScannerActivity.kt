@@ -135,7 +135,8 @@ class ScannerActivity : ComponentActivity() {
             if (isCameraActive) {
                 CameraScanner(
                     onBarcodeScanned = { barcodeValue ->
-                        if (Patterns.WEB_URL.matcher(barcodeValue).matches()) {
+                        if (barcodeValue.startsWith("http://") || barcodeValue.startsWith("https://")) {
+                            // It's a link, open it in the browser
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(barcodeValue))
                             context.startActivity(intent)
                         } else {
