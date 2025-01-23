@@ -309,8 +309,8 @@ class ScannerActivity : ComponentActivity() {
                                         it.setAnalyzer(
                                             ContextCompat.getMainExecutor(ctx),
                                             BarcodeAnalyzer(
-                                                onBarcodeScanned = {
-                                                    onBarcodeScanned(it)  // Trigger the callback
+                                                onBarcodeScanned = { barcode ->
+                                                    onBarcodeScanned(barcode)  // Trigger the callback
                                                     showCenterLine = true  // Show the center line when barcode is scanned
 
                                                     // Trigger vibration on barcode detection
@@ -386,6 +386,7 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
+
 
     class BarcodeAnalyzer(private val onBarcodeScanned: (String) -> Unit) : ImageAnalysis.Analyzer {
 
