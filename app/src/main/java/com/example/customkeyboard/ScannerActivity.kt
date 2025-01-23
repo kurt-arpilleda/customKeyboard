@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.net.Uri
 import android.os.Build
@@ -12,6 +13,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
 import android.util.Patterns
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -75,49 +77,59 @@ class ScannerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            ScannerScreen()
+
+        // Check if camera permission is granted
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            // Permission granted, show the ScannerScreen
+            setContent {
+                ScannerScreen()
+            }
+        } else {
+            // Request the permission
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA_PERMISSION)
         }
     }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            REQUEST_CAMERA_PERMISSION -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // Permission granted, show the ScannerScreen
+                    setContent {
+                        ScannerScreen()
+                    }
+                } else {
+                    // Check if the user selected "Don't ask again"
+                    if (!ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)) {
+                        // User denied permission permanently, direct them to app settings
+                        Toast.makeText(this, "Camera permission is required. Please enable it in app settings.", Toast.LENGTH_LONG).show()
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", packageName, null)
+                        }
+                        startActivity(intent)
+                        finish() // Optional: Close the current activity
+                    } else {
+                        // Permission denied but not permanently, show a message
+                        Toast.makeText(this, "Please enable camera permission in the app settings.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    companion object {
+        private const val REQUEST_CAMERA_PERMISSION = 1
+    }
+
     @Composable
     fun ScannerScreen() {
-        var isCameraActive by remember { mutableStateOf(false) }
+        var isCameraActive by remember { mutableStateOf(true) }
         var cameraWidth by remember { mutableStateOf(330.dp) }
         var cameraHeight by remember { mutableStateOf(80.dp) }
         val context = LocalContext.current
         var flashlightOn by remember { mutableStateOf(false) }
         var isQrMode by remember { mutableStateOf(false) } // false = barcode, true = QR code
-        var showPermissionDialog by remember { mutableStateOf(false) }
-
-        // Check if the app has CAMERA permission
-        val cameraPermissionStatus = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.CAMERA
-        )
-
-        // Handle requesting camera permission if not granted
-        if (cameraPermissionStatus != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            LaunchedEffect(Unit) {
-                // Request permission if not granted
-                ActivityCompat.requestPermissions(
-                    context as Activity,
-                    arrayOf(Manifest.permission.CAMERA),
-                    1001 // Permission request code
-                )
-            }
-        } else {
-            isCameraActive = true
-        }
-
-        // Check permission result in the parent activity (this should be handled in the Activity that contains this Composable)
-        rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.RequestPermission()
-        ) { isGranted ->
-            isCameraActive = isGranted
-            if (!isGranted) {
-                showPermissionDialog = true
-            }
-        }
 
         Box(modifier = Modifier.fillMaxSize()) {
             if (isCameraActive) {
@@ -219,33 +231,6 @@ class ScannerActivity : ComponentActivity() {
                     }
                 }
             }
-
-            // Show dialog if permission is denied permanently
-            if (showPermissionDialog) {
-                AlertDialog(
-                    onDismissRequest = { showPermissionDialog = false },
-                    title = { Text("Camera Permission Required") },
-                    text = { Text("Please enable camera permissions from the settings to use the scanner.") },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                                val uri = Uri.fromParts("package", context.packageName, null)
-                                intent.data = uri
-                                context.startActivity(intent)
-                            }
-                        ) {
-                            Text("Go to Settings", color = MaterialTheme.colors.primary)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showPermissionDialog = false }) {
-                            Text("Cancel", color = MaterialTheme.colors.primary)
-                        }
-                    }
-                )
-            }
-
         }
     }
 
@@ -383,7 +368,6 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
-
 
     class BarcodeAnalyzer(private val onBarcodeScanned: (String) -> Unit) : ImageAnalysis.Analyzer {
 
