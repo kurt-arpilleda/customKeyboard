@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.customkeyboard"
         minSdk = 28
         targetSdk = 34
-        versionCode = 17
-        versionName = "2.6"
+        versionCode = 22
+        versionName = "3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -63,10 +63,13 @@ dependencies {
     implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation ("com.squareup.okhttp3:logging-interceptor:4.10.0")
 
-    implementation ("androidx.camera:camera-camera2:1.0.2")
-    implementation ("androidx.camera:camera-lifecycle:1.0.2")
-    implementation ("androidx.camera:camera-view:1.0.0-alpha31")
-
-    implementation("com.google.zxing:core:3.5.3")
-
+    val camerax_version = "1.5.0-alpha05"
+    implementation ("androidx.camera:camera-core:${camerax_version}")
+    implementation ("androidx.camera:camera-camera2:${camerax_version}")
+    implementation ("androidx.camera:camera-lifecycle:${camerax_version}")
+    implementation ("androidx.camera:camera-video:${camerax_version}")
+    implementation ("androidx.camera:camera-view:${camerax_version}")
+    implementation ("androidx.camera:camera-mlkit-vision:${camerax_version}")
+    implementation ("androidx.camera:camera-extensions:${camerax_version}")
+    implementation ("com.google.zxing:core:3.5.3")
 }
