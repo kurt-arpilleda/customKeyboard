@@ -310,7 +310,6 @@ class ScannerActivity : ComponentActivity() {
                                                 onBarcodeScanned = { barcode ->
                                                     onBarcodeScanned(barcode)  // Trigger the callback
                                                     showCenterLine = true  // Show the center line when barcode is scanned
-
                                                     // Trigger vibration on barcode detection
                                                     val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
