@@ -131,7 +131,7 @@ fun TopAppBarContent() {
     TopAppBar(
         title = {
             Text(
-                text = "ARKeyboard",
+                text = "ARKeyboard Pro",
                 style = TextStyle(
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
@@ -186,7 +186,7 @@ fun MainContent() {
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                text = "Enable ARKeyboard",
+                text = "Enable ARKeyboard Pro",
                 style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             )
         }
@@ -202,7 +202,7 @@ fun MainContent() {
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                text = "Select ARKeyboard",
+                text = "Select ARKeyboard Pro",
                 style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             )
         }
