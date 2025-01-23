@@ -1,8 +1,10 @@
 package com.example.customkeyboard
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.graphics.ImageFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,8 +13,12 @@ import android.os.Vibrator
 import android.provider.Settings
 import android.util.Patterns
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -55,11 +61,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.PermissionStatus
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
@@ -78,36 +81,43 @@ class ScannerActivity : ComponentActivity() {
             ScannerScreen()
         }
     }
-    @OptIn(ExperimentalPermissionsApi::class)
     @Composable
     fun ScannerScreen() {
-        val cameraPermissionState = rememberPermissionState(permission = Manifest.permission.CAMERA)
         var isCameraActive by remember { mutableStateOf(false) }
         var cameraWidth by remember { mutableStateOf(330.dp) }
         var cameraHeight by remember { mutableStateOf(80.dp) }
-
         val context = LocalContext.current
         var flashlightOn by remember { mutableStateOf(false) }
         var isQrMode by remember { mutableStateOf(false) } // false = barcode, true = QR code
         var showPermissionDialog by remember { mutableStateOf(false) }
 
-        // Check permission status
-        LaunchedEffect(cameraPermissionState.status) {
-            when (cameraPermissionState.status) {
-                is PermissionStatus.Granted -> {
-                    // Permission granted
-                    isCameraActive = true
-                }
-                is PermissionStatus.Denied -> {
-                    if (!(cameraPermissionState.status as PermissionStatus.Denied).shouldShowRationale) {
-                        // Permission denied permanently (user checked "Don't ask again")
-                        showPermissionDialog = true
-                    } else {
-                        // Request permission again if the rationale can be shown
-                        cameraPermissionState.launchPermissionRequest()
-                    }
-                }
-                else -> Unit // Handle other statuses if necessary
+        // Check if the app has CAMERA permission
+        val cameraPermissionStatus = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        )
+
+        // Handle requesting camera permission if not granted
+        if (cameraPermissionStatus != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            LaunchedEffect(Unit) {
+                // Request permission if not granted
+                ActivityCompat.requestPermissions(
+                    context as Activity,
+                    arrayOf(Manifest.permission.CAMERA),
+                    1001 // Permission request code
+                )
+            }
+        } else {
+            isCameraActive = true
+        }
+
+        // Check permission result in the parent activity (this should be handled in the Activity that contains this Composable)
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            isCameraActive = isGranted
+            if (!isGranted) {
+                showPermissionDialog = true
             }
         }
 
@@ -396,76 +406,83 @@ class ScannerActivity : ComponentActivity() {
             )
         }
 
-        override fun analyze(image: ImageProxy) {
-            val buffer: ByteBuffer = image.planes[0].buffer
-            val data = ByteArray(buffer.remaining())
-            buffer.get(data)
-
-            val centerRegionWidth = image.width / 2
-            val centerRegionHeight = image.height / 2
-            val startX = image.width / 4
-            val startY = image.height / 4
-
-            // Crop to the center region (reduced size)
-            val croppedData = cropImage(data, image.width, image.height, startX, startY, centerRegionWidth, centerRegionHeight)
-
-            // Optionally, rotate the data if needed (ensure it's correctly adjusted for barcode orientation)
-            val rotatedData = rotateImageData(croppedData, centerRegionWidth, centerRegionHeight)
-
-            // Create a luminance source for the center region only
-            val source = PlanarYUVLuminanceSource(
-                rotatedData,
-                centerRegionWidth,
-                centerRegionHeight,
-                0,
-                0,
-                centerRegionWidth,
-                centerRegionHeight,
-                false
-            )
-
-            val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
-
+        @OptIn(ExperimentalGetImage::class)
+        override fun analyze(imageProxy: ImageProxy) {
             try {
-                val result = reader.decodeWithState(binaryBitmap)
-                onBarcodeScanned(result.text)
-            } catch (e: NotFoundException) {
-                // If no barcode is found, do nothing or log the failure
-            } finally {
-                image.close()
-            }
-        }
+                imageProxy.image?.let {
+                    if ((it.format == ImageFormat.YUV_420_888
+                                || it.format == ImageFormat.YUV_422_888
+                                || it.format == ImageFormat.YUV_444_888)
+                        && it.planes.size == 3) {
 
-        private fun cropImage(data: ByteArray, width: Int, height: Int, startX: Int, startY: Int, cropWidth: Int, cropHeight: Int): ByteArray {
-            val croppedData = ByteArray(cropWidth * cropHeight)
+                        val buffer = it.planes[0].buffer
+                        val bytes = ByteArray(buffer.remaining())
+                        buffer.get(bytes)
 
-            for (y in 0 until cropHeight) {
-                for (x in 0 until cropWidth) {
-                    val oldIndex = (startY + y) * width + (startX + x)
-                    val newIndex = y * cropWidth + x
-                    croppedData[newIndex] = data[oldIndex]
+                        val rotatedImage = RotatedImage(bytes, imageProxy.width, imageProxy.height)
+                        rotateImageArray(rotatedImage, imageProxy.imageInfo.rotationDegrees)
+
+                        val source = PlanarYUVLuminanceSource(
+                            rotatedImage.byteArray,
+                            rotatedImage.width,
+                            rotatedImage.height,
+                            0,
+                            0,
+                            rotatedImage.width,
+                            rotatedImage.height,
+                            false
+                        )
+
+                        val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+
+                        try {
+                            val result = reader.decodeWithState(binaryBitmap)
+                            onBarcodeScanned(result.text)
+                        } catch (e: NotFoundException) {
+                            // No barcode found, do nothing or log the failure
+                        } finally {
+                            reader.reset()
+                        }
+                    }
                 }
+            } catch (e: IllegalStateException) {
+                e.printStackTrace()
+            } finally {
+                imageProxy.close()
             }
-
-            return croppedData
         }
 
-        private fun rotateImageData(data: ByteArray, width: Int, height: Int): ByteArray {
-            val rotatedData = ByteArray(data.size)
+        private fun rotateImageArray(imageToRotate: RotatedImage, rotationDegrees: Int) {
+            if (rotationDegrees == 0) return // No rotation needed
+            if (rotationDegrees % 90 != 0) return // Only handle rotations in 90-degree steps
 
+            val width = imageToRotate.width
+            val height = imageToRotate.height
+
+            val rotatedData = ByteArray(imageToRotate.byteArray.size)
             for (y in 0 until height) {
                 for (x in 0 until width) {
-                    val newX = height - y - 1
-                    val newY = x
-                    val oldIndex = y * width + x
-                    val newIndex = newY * height + newX
-                    rotatedData[newIndex] = data[oldIndex]
+                    when (rotationDegrees) {
+                        90 -> rotatedData[x * height + height - y - 1] =
+                            imageToRotate.byteArray[x + y * width] // Rotate 90 degrees clockwise
+                        180 -> rotatedData[width * (height - y - 1) + width - x - 1] =
+                            imageToRotate.byteArray[x + y * width] // Rotate 180 degrees clockwise
+                        270 -> rotatedData[y + x * height] =
+                            imageToRotate.byteArray[y * width + width - x - 1] // Rotate 270 degrees clockwise
+                    }
                 }
             }
 
-            return rotatedData
+            imageToRotate.byteArray = rotatedData
+
+            if (rotationDegrees != 180) {
+                imageToRotate.height = width
+                imageToRotate.width = height
+            }
         }
     }
+
+    private data class RotatedImage(var byteArray: ByteArray, var width: Int, var height: Int)
 
     @Preview(showBackground = true)
     @Composable

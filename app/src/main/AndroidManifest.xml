@@ -47,6 +47,8 @@
         </activity>
         <activity android:name=".ScannerActivity"
             android:label="QR Scanner"
+            tools:replace="screenOrientation"
+            android:screenOrientation="sensorPortrait"
             android:exported="true" />
         <service
             android:name=".IMEService"
