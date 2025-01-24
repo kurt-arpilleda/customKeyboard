@@ -66,6 +66,7 @@ import com.google.zxing.NotFoundException
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import kotlinx.coroutines.delay
+import java.nio.ByteBuffer
 
 class ScannerActivity : ComponentActivity() {
 
@@ -392,11 +393,8 @@ class ScannerActivity : ComponentActivity() {
                                 || it.format == ImageFormat.YUV_444_888)
                         && it.planes.size == 3) {
 
-                        val buffer = it.planes[0].buffer
-                        val bytes = ByteArray(buffer.remaining())
-                        buffer.get(bytes)
-
-                        val rotatedImage = RotatedImage(bytes, imageProxy.width, imageProxy.height)
+                        val luminanceData = getLuminancePlaneData(imageProxy)  // Get luminance data
+                        val rotatedImage = RotatedImage(luminanceData, imageProxy.width, imageProxy.height)
                         rotateImageArray(rotatedImage, imageProxy.imageInfo.rotationDegrees)
 
                         val source = PlanarYUVLuminanceSource(
@@ -427,6 +425,27 @@ class ScannerActivity : ComponentActivity() {
             } finally {
                 imageProxy.close()
             }
+        }
+
+        private fun getLuminancePlaneData(image: ImageProxy): ByteArray {
+            val plane = image.planes[0]
+            val buf: ByteBuffer = plane.buffer
+            val data = ByteArray(buf.remaining())
+            buf.get(data)
+            buf.rewind()
+            val width = image.width
+            val height = image.height
+            val rowStride = plane.rowStride
+            val pixelStride = plane.pixelStride
+
+            // Remove padding from the Y plane data
+            val cleanData = ByteArray(width * height)
+            for (y in 0 until height) {
+                for (x in 0 until width) {
+                    cleanData[y * width + x] = data[y * rowStride + x * pixelStride]
+                }
+            }
+            return cleanData
         }
 
         private fun rotateImageArray(imageToRotate: RotatedImage, rotationDegrees: Int) {
