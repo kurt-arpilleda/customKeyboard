@@ -367,7 +367,22 @@ class ScannerActivity : ComponentActivity() {
 
     class BarcodeAnalyzer(private val onBarcodeScanned: (String) -> Unit) : ImageAnalysis.Analyzer {
 
-        private val reader = MultiFormatReader()
+        private val reader = MultiFormatReader().apply {
+            setHints(
+                mapOf(
+                    DecodeHintType.POSSIBLE_FORMATS to listOf(
+                        BarcodeFormat.CODE_39,
+                        BarcodeFormat.QR_CODE,
+                        BarcodeFormat.DATA_MATRIX,
+                        BarcodeFormat.CODE_93,
+                        BarcodeFormat.CODE_128,
+                        BarcodeFormat.EAN_13,
+                        BarcodeFormat.UPC_A
+                    ),
+                    DecodeHintType.TRY_HARDER to true  // Increases sensitivity for smaller barcodes
+                )
+            )
+        }
 
         @OptIn(ExperimentalGetImage::class)
         override fun analyze(imageProxy: ImageProxy) {
