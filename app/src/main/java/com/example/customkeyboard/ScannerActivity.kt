@@ -377,7 +377,7 @@ class ScannerActivity : ComponentActivity() {
                         BarcodeFormat.CODE_93,
                         BarcodeFormat.CODE_128,
                         BarcodeFormat.EAN_13,
-                        BarcodeFormat.UPC_A
+                        BarcodeFormat.UPC_A,
                     ),
                     DecodeHintType.TRY_HARDER to true  // Increases sensitivity for smaller barcodes
                 )
