@@ -9,8 +9,8 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    const val PRIMARY_URL = "http://192.168.254.163/"
-    const val FALLBACK_URL =  "http://126.209.7.246/"
+    const val PRIMARY_URL = "http://126.209.7.246/"
+    const val FALLBACK_URL =  "http://192.168.254.163/"
 
     // Configuring the logging interceptor
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
