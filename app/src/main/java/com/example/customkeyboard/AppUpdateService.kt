@@ -86,7 +86,7 @@ class AppUpdateService(private val context: Context) {
 
     private fun downloadFile(fileName: String, baseUrl: String, progressDialog: ProgressDialog, destinationFile: File) {
         Thread {
-            var url = "$baseUrl/V4/Others/Kurt/LatestVersionAPK/ARKeyboard/$fileName"
+            var url = "$baseUrl/V4/Others/Kurt/LatestVersionAPK/Paging/$fileName"
             var downloadedBytes: Long = 0
             var totalBytes: Long = 0
 
