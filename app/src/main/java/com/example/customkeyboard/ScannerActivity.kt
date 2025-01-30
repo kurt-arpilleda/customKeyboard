@@ -67,6 +67,7 @@ import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
+import java.util.concurrent.Executors
 
 class ScannerActivity : ComponentActivity() {
 
@@ -241,6 +242,7 @@ class ScannerActivity : ComponentActivity() {
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
         var delayCompleted by remember { mutableStateOf(false) }
         var showCenterLine by remember { mutableStateOf(false) }
+        val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
         LaunchedEffect(Unit) {
             delay(500)
@@ -286,17 +288,16 @@ class ScannerActivity : ComponentActivity() {
                                     .build()
                                     .also {
                                         it.setAnalyzer(
-                                            ContextCompat.getMainExecutor(ctx),
+                                            cameraExecutor,
                                             BarcodeAnalyzer(
                                                 onBarcodeScanned = { barcode ->
-                                                    onBarcodeScanned(barcode)  // Trigger the callback
-                                                    showCenterLine = true  // Show the center line when barcode is scanned
-                                                    // Trigger vibration on barcode detection
+                                                    onBarcodeScanned(barcode)
+                                                    showCenterLine = true
                                                     val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                                         vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
                                                     } else {
-                                                        vibrator.vibrate(100) // For devices below Android O
+                                                        vibrator.vibrate(100)
                                                     }
                                                 }
                                             )
