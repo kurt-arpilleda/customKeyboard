@@ -70,7 +70,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
 class ScannerActivity : ComponentActivity() {
-
+private val cameraExecutor = Executors.newSingleThreadExecutor()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -113,7 +113,10 @@ class ScannerActivity : ComponentActivity() {
             }
         }
     }
-
+   override fun onDestroy(){
+    super.onDestroy()
+    cameraExecutor.shutdown()
+   }
     companion object {
         private const val REQUEST_CAMERA_PERMISSION = 1
     }
