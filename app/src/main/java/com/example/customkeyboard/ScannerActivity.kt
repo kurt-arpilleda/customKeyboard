@@ -22,6 +22,7 @@ import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,6 +52,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -71,7 +73,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
 class ScannerActivity : ComponentActivity() {
-private val cameraExecutor = Executors.newSingleThreadExecutor()
+    private val cameraExecutor = Executors.newSingleThreadExecutor()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -114,10 +116,10 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
             }
         }
     }
-   override fun onDestroy(){
-    super.onDestroy()
-    cameraExecutor.shutdown()
-   }
+    override fun onDestroy(){
+        super.onDestroy()
+        cameraExecutor.shutdown()
+    }
     companion object {
         private const val REQUEST_CAMERA_PERMISSION = 1
     }
@@ -248,11 +250,18 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
         var showCenterLine by remember { mutableStateOf(false) }
         val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
+        // Convert scanning frame dimensions from Dp to pixels.
+        val density = LocalDensity.current
+        val scanningFramePxWidth = with(density) { cameraWidth.toPx() }
+        val scanningFramePxHeight = with(density) { cameraHeight.toPx() }
+
+        // A slight delay to allow the preview view to be ready.
         LaunchedEffect(Unit) {
             delay(500)
             delayCompleted = true
         }
 
+        // Turn flashlight on or off.
         LaunchedEffect(flashlightOn) {
             val cameraProvider = cameraProviderFuture.get()
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -266,12 +275,10 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
 
         Box(modifier = Modifier.fillMaxSize()) {
             if (delayCompleted) {
-                Box(
-                    modifier = Modifier.fillMaxSize()
-                ) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     AndroidView(
                         factory = { ctx ->
-                            val previewView = androidx.camera.view.PreviewView(ctx)
+                            val previewView = PreviewView(ctx)
 
                             cameraProviderFuture.addListener({
                                 val cameraProvider = cameraProviderFuture.get()
@@ -280,14 +287,10 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
                                 val preview = androidx.camera.core.Preview.Builder().build().also {
                                     it.setSurfaceProvider(previewView.surfaceProvider)
                                 }
-
+                                // Configure ImageAnalysis.
+                                // You can use a target resolution here if you wish;
+                                // here we let the analyzer receive a full image then crop to the scanning area.
                                 val imageAnalyzer = ImageAnalysis.Builder()
-                                    .setTargetResolution(
-                                        android.util.Size(
-                                            cameraWidth.value.toInt(),
-                                            cameraHeight.value.toInt()
-                                        )
-                                    )
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                     .build()
                                     .also {
@@ -299,31 +302,41 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
                                                     showCenterLine = true
                                                     val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                        vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+                                                        vibrator.vibrate(
+                                                            VibrationEffect.createOneShot(
+                                                                100,
+                                                                VibrationEffect.DEFAULT_AMPLITUDE
+                                                            )
+                                                        )
                                                     } else {
                                                         vibrator.vibrate(100)
                                                     }
-                                                }
+                                                },
+                                                // Pass the scanning frame dimensions in pixels.
+                                                scanningFrameWidth = scanningFramePxWidth.toInt(),
+                                                scanningFrameHeight = scanningFramePxHeight.toInt()
                                             )
                                         )
                                     }
 
+                                // Optionally, request focus metering in the center.
                                 val meterFactory = previewView.meteringPointFactory
-                                val centerX = previewView.width / 2f
-                                val centerY = previewView.height / 2f
-                                val centerMeteringPoint = meterFactory.createPoint(centerX, centerY)
-
-                                val cameraControl = cameraProvider.bindToLifecycle(
-                                    ctx as ComponentActivity,
-                                    cameraSelector,
-                                    preview,
-                                    imageAnalyzer
-                                ).cameraControl
-
-                                val action = FocusMeteringAction.Builder(centerMeteringPoint)
-                                    .build()
-                                cameraControl.startFocusAndMetering(action)
-
+                                // Note: previewView.width/height might be zero at first.
+                                // You might want to wait until the view is laid out.
+                                previewView.post {
+                                    val centerX = previewView.width / 2f
+                                    val centerY = previewView.height / 2f
+                                    val centerMeteringPoint = meterFactory.createPoint(centerX, centerY)
+                                    // Bind lifecycle with preview and imageAnalyzer.
+                                    val camera = cameraProvider.bindToLifecycle(
+                                        ctx as ComponentActivity,
+                                        cameraSelector,
+                                        preview,
+                                        imageAnalyzer
+                                    )
+                                    val action = FocusMeteringAction.Builder(centerMeteringPoint).build()
+                                    camera.cameraControl.startFocusAndMetering(action)
+                                }
                             }, ContextCompat.getMainExecutor(ctx))
 
                             previewView
@@ -331,30 +344,33 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    Canvas(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
+                    // Draw the scanning frame overlay.
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        // Dim the entire screen.
                         val dimColor = Color.Black.copy(alpha = 0.8f)
                         drawRect(color = dimColor)
 
+                        // Compute the frame rectangle (centered)
                         val frameWidth = cameraWidth.toPx()
                         val frameHeight = cameraHeight.toPx()
-                        val centerX = (size.width - frameWidth) / 2
-                        val centerY = (size.height - frameHeight) / 2
+                        val left = (size.width - frameWidth) / 2
+                        val top = (size.height - frameHeight) / 2
 
+                        // Clear the scanning area (so the preview shows through).
                         drawRect(
                             color = Color.Transparent,
-                            topLeft = Offset(centerX, centerY),
+                            topLeft = Offset(left, top),
                             size = androidx.compose.ui.geometry.Size(frameWidth, frameHeight),
                             blendMode = BlendMode.Clear
                         )
 
+                        // Optionally draw a center line once a barcode is scanned.
                         if (showCenterLine) {
-                            val centerLineY = (size.height / 2)
+                            val centerLineY = size.height / 2
                             drawLine(
                                 color = Color.Green,
-                                start = Offset(centerX, centerLineY),
-                                end = Offset(centerX + frameWidth, centerLineY),
+                                start = Offset(left, centerLineY),
+                                end = Offset(left + frameWidth, centerLineY),
                                 strokeWidth = 6f
                             )
                         }
@@ -370,8 +386,14 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
         }
     }
 
+    /**
+     * BarcodeAnalyzer now accepts the scanning frame width and height (in pixels) so that it only analyzes
+     * the center area of the image.
+     */
     class BarcodeAnalyzer(
         private val onBarcodeScanned: (String) -> Unit,
+        private val scanningFrameWidth: Int,
+        private val scanningFrameHeight: Int,
         private val debounceInterval: Long = 100,
         private val threshold: Int = 3 // Number of consecutive matches needed
     ) : ImageAnalysis.Analyzer {
@@ -379,33 +401,39 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
         private val reader = MultiFormatReader()
         private var lastScanTime: Long = 0
         private val lock = Any()
-
         private val scanQueue: MutableList<String> = mutableListOf()
 
         @OptIn(ExperimentalGetImage::class)
         override fun analyze(imageProxy: ImageProxy) {
             try {
-                imageProxy.image?.let {
-                    if ((it.format == ImageFormat.YUV_420_888
-                                || it.format == ImageFormat.YUV_422_888
-                                || it.format == ImageFormat.YUV_444_888)
-                        && it.planes.size == 3) {
-
+                imageProxy.image?.let { image ->
+                    if ((image.format == ImageFormat.YUV_420_888 ||
+                                image.format == ImageFormat.YUV_422_888 ||
+                                image.format == ImageFormat.YUV_444_888)
+                        && imageProxy.planes.size >= 1
+                    ) {
+                        // Get luminance data from the first plane.
                         val luminanceData = getLuminancePlaneData(imageProxy)
                         val rotatedImage = RotatedImage(luminanceData, imageProxy.width, imageProxy.height)
                         rotateImageArray(rotatedImage, imageProxy.imageInfo.rotationDegrees)
 
+                        // Calculate cropping rectangle (centered in the rotated image)
+                        val cropLeft = ((rotatedImage.width - scanningFrameWidth) / 2).coerceAtLeast(0)
+                        val cropTop = ((rotatedImage.height - scanningFrameHeight) / 2).coerceAtLeast(0)
+                        val cropWidth = scanningFrameWidth.coerceAtMost(rotatedImage.width)
+                        val cropHeight = scanningFrameHeight.coerceAtMost(rotatedImage.height)
+
+                        // Create a luminance source only for the scanning area.
                         val source = PlanarYUVLuminanceSource(
                             rotatedImage.byteArray,
                             rotatedImage.width,
                             rotatedImage.height,
-                            0,
-                            0,
-                            rotatedImage.width,
-                            rotatedImage.height,
+                            cropLeft,
+                            cropTop,
+                            cropWidth,
+                            cropHeight,
                             false
                         )
-
                         val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
 
                         try {
@@ -416,27 +444,21 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
                                 if (currentTime - lastScanTime >= debounceInterval) {
                                     // Add result to queue
                                     scanQueue.add(result.text)
-//                                    Log.d("BarcodeAnalyzer", "Added result: ${result.text}")
-//                                    Log.d("BarcodeAnalyzer", "Current queue: $scanQueue")
 
                                     if (scanQueue.size > threshold) {
                                         scanQueue.removeAt(0)
-//                                        Log.d("BarcodeAnalyzer", "Queue exceeded threshold, removed oldest entry. New queue: $scanQueue")
                                     }
 
-                                    // If we have reached the threshold and all entries are equal, trigger scan
+                                    // If we have reached the threshold and all entries are equal, trigger scan.
                                     if (scanQueue.size == threshold && scanQueue.all { it == scanQueue[0] }) {
-//                                        Log.d("BarcodeAnalyzer", "Threshold met with consistent barcode: ${result.text}")
                                         onBarcodeScanned(result.text)
                                         scanQueue.clear()
-//                                        Log.d("BarcodeAnalyzer", "Queue cleared after triggering scan.")
                                     }
-
                                     lastScanTime = currentTime
                                 }
                             }
                         } catch (e: NotFoundException) {
-                            // No barcode found
+                            // No barcode found in this cropped area.
                         } finally {
                             reader.reset()
                         }
@@ -449,14 +471,14 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
             }
         }
 
-        private fun getLuminancePlaneData(image: ImageProxy): ByteArray {
-            val plane = image.planes[0]
+        private fun getLuminancePlaneData(imageProxy: ImageProxy): ByteArray {
+            val plane = imageProxy.planes[0]
             val buf: ByteBuffer = plane.buffer
             val data = ByteArray(buf.remaining())
             buf.get(data)
             buf.rewind()
-            val width = image.width
-            val height = image.height
+            val width = imageProxy.width
+            val height = imageProxy.height
             val rowStride = plane.rowStride
             val pixelStride = plane.pixelStride
 
@@ -480,12 +502,12 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
             for (y in 0 until height) {
                 for (x in 0 until width) {
                     when (rotationDegrees) {
-                        90 -> rotatedData[x * height + height - y - 1] =
+                        90 -> rotatedData[x * height + (height - y - 1)] =
                             imageToRotate.byteArray[x + y * width]
-                        180 -> rotatedData[width * (height - y - 1) + width - x - 1] =
+                        180 -> rotatedData[width * (height - y - 1) + (width - x - 1)] =
                             imageToRotate.byteArray[x + y * width]
                         270 -> rotatedData[y + x * height] =
-                            imageToRotate.byteArray[y * width + width - x - 1]
+                            imageToRotate.byteArray[y * width + (width - x - 1)]
                     }
                 }
             }
