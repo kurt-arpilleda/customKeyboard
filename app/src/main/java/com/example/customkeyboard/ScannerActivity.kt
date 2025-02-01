@@ -369,9 +369,14 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
         }
     }
 
-    class BarcodeAnalyzer(private val onBarcodeScanned: (String) -> Unit) : ImageAnalysis.Analyzer {
+    class BarcodeAnalyzer(
+        private val onBarcodeScanned: (String) -> Unit,
+        private val debounceInterval: Long = 1000 // Default debounce time: 1 second
+    ) : ImageAnalysis.Analyzer {
 
         private val reader = MultiFormatReader()
+        private var lastScanTime: Long = 0
+        private val lock = Any() // Synchronization lock
 
         @OptIn(ExperimentalGetImage::class)
         override fun analyze(imageProxy: ImageProxy) {
@@ -382,7 +387,7 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
                                 || it.format == ImageFormat.YUV_444_888)
                         && it.planes.size == 3) {
 
-                        val luminanceData = getLuminancePlaneData(imageProxy)  // Get luminance data
+                        val luminanceData = getLuminancePlaneData(imageProxy)
                         val rotatedImage = RotatedImage(luminanceData, imageProxy.width, imageProxy.height)
                         rotateImageArray(rotatedImage, imageProxy.imageInfo.rotationDegrees)
 
@@ -401,9 +406,16 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
 
                         try {
                             val result = reader.decodeWithState(binaryBitmap)
-                            onBarcodeScanned(result.text)
+                            val currentTime = System.currentTimeMillis()
+
+                            synchronized(lock) {
+                                if (currentTime - lastScanTime >= debounceInterval) {
+                                    onBarcodeScanned(result.text)
+                                    lastScanTime = currentTime
+                                }
+                            }
                         } catch (e: NotFoundException) {
-                            // No barcode found, do nothing or log the failure
+                            // No barcode found
                         } finally {
                             reader.reset()
                         }
@@ -438,8 +450,8 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
         }
 
         private fun rotateImageArray(imageToRotate: RotatedImage, rotationDegrees: Int) {
-            if (rotationDegrees == 0) return // No rotation needed
-            if (rotationDegrees % 90 != 0) return // Only handle rotations in 90-degree steps
+            if (rotationDegrees == 0) return
+            if (rotationDegrees % 90 != 0) return
 
             val width = imageToRotate.width
             val height = imageToRotate.height
@@ -449,11 +461,11 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
                 for (x in 0 until width) {
                     when (rotationDegrees) {
                         90 -> rotatedData[x * height + height - y - 1] =
-                            imageToRotate.byteArray[x + y * width] // Rotate 90 degrees clockwise
+                            imageToRotate.byteArray[x + y * width]
                         180 -> rotatedData[width * (height - y - 1) + width - x - 1] =
-                            imageToRotate.byteArray[x + y * width] // Rotate 180 degrees clockwise
+                            imageToRotate.byteArray[x + y * width]
                         270 -> rotatedData[y + x * height] =
-                            imageToRotate.byteArray[y * width + width - x - 1] // Rotate 270 degrees clockwise
+                            imageToRotate.byteArray[y * width + width - x - 1]
                     }
                 }
             }
@@ -468,7 +480,6 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
     private data class RotatedImage(var byteArray: ByteArray, var width: Int, var height: Int)
-
     @Preview(showBackground = true)
     @Composable
     fun ScannerScreenPreview() {
