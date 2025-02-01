@@ -169,14 +169,14 @@ class ScannerActivityTwoD : ComponentActivity() {
                         tint = Color.White
                     )
                     Text(
-                        text = "Scan Here",
+                        text = "Scan 2D",
                         color = Color.White,
                         fontSize = 20.sp
                     )
                 }
 
                 Text(
-                    text = "Place the code inside the frame.\nEnsure it is centered and not blurry.",
+                    text = "Place the 2D Barcode inside the frame.\nEnsure it is centered and not blurry.",
                     color = Color.White,
                     fontSize = 12.sp
                 )
@@ -364,7 +364,7 @@ class ScannerActivityTwoD : ComponentActivity() {
                 }
             } else {
                 Text(
-                    text = "Preparing Scanner...",
+                    text = "Preparing 2D Scanner...",
                     modifier = Modifier.align(Alignment.Center),
                     style = MaterialTheme.typography.h6
                 )

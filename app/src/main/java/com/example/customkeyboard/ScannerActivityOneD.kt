@@ -169,14 +169,14 @@ class ScannerActivityOneD : ComponentActivity() {
                         tint = Color.White
                     )
                     Text(
-                        text = "Scan Here",
+                        text = "Scan 1D",
                         color = Color.White,
                         fontSize = 20.sp
                     )
                 }
 
                 Text(
-                    text = "Place the code inside the frame.\nEnsure it is centered and not blurry.",
+                    text = "Place the 1D Barcode inside the frame.\nEnsure it is centered and not blurry.",
                     color = Color.White,
                     fontSize = 12.sp
                 )
@@ -372,7 +372,7 @@ class ScannerActivityOneD : ComponentActivity() {
                             color = Color.Red,
                             start = Offset(left, centerLineY),
                             end = Offset(left + frameWidth, centerLineY),
-                            strokeWidth = 4f
+                            strokeWidth = 2f
                         )
 
                         // Optionally draw a green center line once a barcode is scanned.
@@ -388,7 +388,7 @@ class ScannerActivityOneD : ComponentActivity() {
                 }
             } else {
                 Text(
-                    text = "Preparing Scanner...",
+                    text = "Preparing 1D Scanner...",
                     modifier = Modifier.align(Alignment.Center),
                     style = MaterialTheme.typography.h6
                 )
