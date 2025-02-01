@@ -47,8 +47,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ScannerActivity"
-            android:label="QR Scanner"
+        <activity android:name=".ScannerActivityOneD"
+            android:label="1D Scanner"
+            tools:replace="screenOrientation"
+            android:screenOrientation="sensorPortrait"
+            android:exported="true" />
+        <activity android:name=".ScannerActivityTwoD"
+            android:label="2D Scanner"
             tools:replace="screenOrientation"
             android:screenOrientation="sensorPortrait"
             android:exported="true" />

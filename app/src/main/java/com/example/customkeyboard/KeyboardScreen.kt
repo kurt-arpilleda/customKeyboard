@@ -57,7 +57,7 @@ fun KeyboardScreen() {
 
     LaunchedEffect(navigateToScanner.value) {
         if (navigateToScanner.value) {
-            val intent = Intent(context, ScannerActivity::class.java)
+            val intent = Intent(context, ScannerActivityOneD::class.java)
             if (context !is Activity) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }

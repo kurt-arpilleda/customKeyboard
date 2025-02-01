@@ -11,7 +11,6 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -72,7 +71,7 @@ import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
-class ScannerActivity : ComponentActivity() {
+class ScannerActivityOneD : ComponentActivity() {
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -405,7 +404,24 @@ class ScannerActivity : ComponentActivity() {
         private val threshold: Int = 3 // Number of consecutive matches needed
     ) : ImageAnalysis.Analyzer {
 
-        private val reader = MultiFormatReader()
+        private val reader = MultiFormatReader().apply {
+            setHints(
+                mapOf(
+                    DecodeHintType.POSSIBLE_FORMATS to listOf(
+                        BarcodeFormat.CODE_39,
+                        BarcodeFormat.QR_CODE,
+                        BarcodeFormat.DATA_MATRIX,
+                        BarcodeFormat.CODE_93,
+                        BarcodeFormat.CODE_128,
+                        BarcodeFormat.EAN_13,
+                        BarcodeFormat.UPC_A,
+                        BarcodeFormat.UPC_E
+                    ),
+                    DecodeHintType.TRY_HARDER to true  // Increases sensitivity for smaller barcodes
+                )
+            )
+        }
+
         private var lastScanTime: Long = 0
         private val lock = Any()
         private val scanQueue: MutableList<String> = mutableListOf()
