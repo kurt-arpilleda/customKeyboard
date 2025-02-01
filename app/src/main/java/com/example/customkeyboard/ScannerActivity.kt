@@ -287,9 +287,6 @@ class ScannerActivity : ComponentActivity() {
                                 val preview = androidx.camera.core.Preview.Builder().build().also {
                                     it.setSurfaceProvider(previewView.surfaceProvider)
                                 }
-                                // Configure ImageAnalysis.
-                                // You can use a target resolution here if you wish;
-                                // here we let the analyzer receive a full image then crop to the scanning area.
                                 val imageAnalyzer = ImageAnalysis.Builder()
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                     .build()
@@ -319,10 +316,7 @@ class ScannerActivity : ComponentActivity() {
                                         )
                                     }
 
-                                // Optionally, request focus metering in the center.
                                 val meterFactory = previewView.meteringPointFactory
-                                // Note: previewView.width/height might be zero at first.
-                                // You might want to wait until the view is laid out.
                                 previewView.post {
                                     val centerX = previewView.width / 2f
                                     val centerY = previewView.height / 2f
@@ -386,10 +380,6 @@ class ScannerActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * BarcodeAnalyzer now accepts the scanning frame width and height (in pixels) so that it only analyzes
-     * the center area of the image.
-     */
     class BarcodeAnalyzer(
         private val onBarcodeScanned: (String) -> Unit,
         private val scanningFrameWidth: Int,
