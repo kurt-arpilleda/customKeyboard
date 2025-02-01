@@ -409,13 +409,13 @@ class ScannerActivityOneD : ComponentActivity() {
                 mapOf(
                     DecodeHintType.POSSIBLE_FORMATS to listOf(
                         BarcodeFormat.CODE_39,
-                        BarcodeFormat.QR_CODE,
-                        BarcodeFormat.DATA_MATRIX,
                         BarcodeFormat.CODE_93,
                         BarcodeFormat.CODE_128,
                         BarcodeFormat.EAN_13,
                         BarcodeFormat.UPC_A,
-                        BarcodeFormat.UPC_E
+                        BarcodeFormat.UPC_E,
+                        BarcodeFormat.EAN_8,
+                        BarcodeFormat.ITF
                     ),
                     DecodeHintType.TRY_HARDER to true  // Increases sensitivity for smaller barcodes
                 )
