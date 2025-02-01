@@ -1,6 +1,7 @@
 package com.example.customkeyboard
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -130,14 +131,12 @@ class ScannerActivityOneD : ComponentActivity() {
         var cameraHeight by remember { mutableStateOf(80.dp) }
         val context = LocalContext.current
         var flashlightOn by remember { mutableStateOf(false) }
-        var isQrMode by remember { mutableStateOf(false) } // false = barcode, true = QR code
 
         Box(modifier = Modifier.fillMaxSize()) {
             if (isCameraActive) {
                 CameraScanner(
                     onBarcodeScanned = { barcodeValue ->
                         if (barcodeValue.startsWith("http://") || barcodeValue.startsWith("https://")) {
-                            // It's a link, open it in the browser
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(barcodeValue))
                             context.startActivity(intent)
                         } else {
@@ -146,7 +145,6 @@ class ScannerActivityOneD : ComponentActivity() {
                                 putExtra("SCANNED_CODE", barcodeValue)
                             }
                             context.sendBroadcast(intent)
-                            finish()
                         }
                     },
                     cameraWidth = cameraWidth,
@@ -197,18 +195,21 @@ class ScannerActivityOneD : ComponentActivity() {
                             .padding(4.dp)
                     ) {
                         Icon(
-                            painter = painterResource(id = if (isQrMode) R.drawable.qrscanner else R.drawable.barcodescan),
+                            painter = painterResource(id = R.drawable.qr_icon),
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier
                                 .clickable {
-                                    isQrMode = !isQrMode
-                                    if (isQrMode) {
-                                        cameraWidth = 250.dp
-                                        cameraHeight = 250.dp
-                                    } else {
-                                        cameraWidth = 330.dp
-                                        cameraHeight = 80.dp
+                                    val intent = Intent(context, ScannerActivityTwoD::class.java)
+                                    if (context !is Activity) {
+                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                    if (context is Activity) {
+                                        context.overridePendingTransition(
+                                            R.anim.animate_fade_enter,
+                                            R.anim.animate_fade_exit
+                                        )
                                     }
                                 }
                                 .size(40.dp)
@@ -235,7 +236,6 @@ class ScannerActivityOneD : ComponentActivity() {
             }
         }
     }
-
     @Composable
     fun CameraScanner(
         onBarcodeScanned: (String) -> Unit,
