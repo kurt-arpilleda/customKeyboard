@@ -288,12 +288,18 @@ class ScannerActivity : ComponentActivity() {
                                     it.setSurfaceProvider(previewView.surfaceProvider)
                                 }
                                 val imageAnalyzer = ImageAnalysis.Builder()
+                                    .setTargetResolution(
+                                        android.util.Size(
+                                            cameraWidth.value.toInt(),
+                                            cameraHeight.value.toInt()
+                                        )
+                                    )
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                     .build()
                                     .also {
                                         it.setAnalyzer(
                                             cameraExecutor,
-                                            BarcodeAnalyzer(
+                                            OneDBarcodeAnalyzer(
                                                 onBarcodeScanned = { barcode ->
                                                     onBarcodeScanned(barcode)
                                                     showCenterLine = true
@@ -358,9 +364,19 @@ class ScannerActivity : ComponentActivity() {
                             blendMode = BlendMode.Clear
                         )
 
-                        // Optionally draw a center line once a barcode is scanned.
+                        // Compute the center line's Y coordinate within the scanning frame.
+                        val centerLineY = top + frameHeight / 2
+
+                        // Draw a permanent red center line as a guide.
+                        drawLine(
+                            color = Color.Red,
+                            start = Offset(left, centerLineY),
+                            end = Offset(left + frameWidth, centerLineY),
+                            strokeWidth = 4f
+                        )
+
+                        // Optionally draw a green center line once a barcode is scanned.
                         if (showCenterLine) {
-                            val centerLineY = size.height / 2
                             drawLine(
                                 color = Color.Green,
                                 start = Offset(left, centerLineY),
@@ -380,7 +396,8 @@ class ScannerActivity : ComponentActivity() {
         }
     }
 
-    class BarcodeAnalyzer(
+
+    class OneDBarcodeAnalyzer(
         private val onBarcodeScanned: (String) -> Unit,
         private val scanningFrameWidth: Int,
         private val scanningFrameHeight: Int,
@@ -400,7 +417,7 @@ class ScannerActivity : ComponentActivity() {
                     if ((image.format == ImageFormat.YUV_420_888 ||
                                 image.format == ImageFormat.YUV_422_888 ||
                                 image.format == ImageFormat.YUV_444_888)
-                        && imageProxy.planes.size >= 1
+                        && imageProxy.planes.size >= 3
                     ) {
                         // Get luminance data from the first plane.
                         val luminanceData = getLuminancePlaneData(imageProxy)
