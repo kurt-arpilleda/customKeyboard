@@ -165,7 +165,7 @@ class ScannerActivityOneD : ComponentActivity() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        painter = painterResource(id = R.drawable.qrscanner),
+                        painter = painterResource(id = R.drawable.barcodescan),
                         contentDescription = null,
                         tint = Color.White
                     )
@@ -197,7 +197,7 @@ class ScannerActivityOneD : ComponentActivity() {
                             .padding(4.dp)
                     ) {
                         Icon(
-                            painter = painterResource(id = if (isQrMode) R.drawable.qr_icon else R.drawable.barcode_icon),
+                            painter = painterResource(id = if (isQrMode) R.drawable.qrscanner else R.drawable.barcodescan),
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier

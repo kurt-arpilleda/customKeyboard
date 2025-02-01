@@ -50,13 +50,30 @@ fun KeyboardScreen() {
         arrayOf("P", "R", "S", "1", "2", "3"),
         arrayOf("-", "", "", "0", "Enter")
     )
-    val context = LocalContext.current // Access the current context
+    val context = LocalContext.current
     val currentKeyPressed = remember { mutableStateOf("") }
-    val navigateToScanner = remember { mutableStateOf(false) } // Flag for navigation
+    val navigateToScannerTwoD = remember { mutableStateOf(false) }
+    val navigateToScannerOneD = remember { mutableStateOf(false) }
 
+    LaunchedEffect(navigateToScannerTwoD.value) {
+        if (navigateToScannerTwoD.value) {
+            val intent = Intent(context, ScannerActivityOneD::class.java)
+            if (context !is Activity) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            if (context is Activity) {
+                context.overridePendingTransition(
+                    R.anim.animate_fade_enter,
+                    R.anim.animate_fade_exit
+                )
+            }
+            navigateToScannerTwoD.value = false
+        }
+    }
 
-    LaunchedEffect(navigateToScanner.value) {
-        if (navigateToScanner.value) {
+    LaunchedEffect(navigateToScannerOneD.value) {
+        if (navigateToScannerOneD.value) {
             val intent = Intent(context, ScannerActivityTwoD::class.java)
             if (context !is Activity) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -66,95 +83,86 @@ fun KeyboardScreen() {
                 context.overridePendingTransition(
                     R.anim.animate_fade_enter,
                     R.anim.animate_fade_exit
-                ) // Apply transition animation
+                )
             }
-            navigateToScanner.value = false // Reset the flag
+            navigateToScannerOneD.value = false
         }
     }
+
     Column(
         modifier = Modifier
             .background(Color(0xFFA2ABBA))
             .fillMaxWidth(),
     ) {
-        // Add a row for the top-left and top-right corner icons
         Row(
-            modifier = Modifier
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween // Space out the icons
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             IconButton(
                 onClick = {
                     val imm = context.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showInputMethodPicker() // Show the input method picker dialog
+                    imm.showInputMethodPicker()
                 }
             ) {
                 Icon(
-                    painter = painterResource(id = R.drawable.changekeyboard), // Replace with your keyboard icon resource
+                    painter = painterResource(id = R.drawable.changekeyboard),
                     contentDescription = "Keyboard Icon",
                     modifier = Modifier.size(25.dp)
                 )
             }
 
-            IconButton(
-                onClick = {
-                    navigateToScanner.value = true // Set flag to true to trigger the intent
+            Row {
+                IconButton(
+                    onClick = { navigateToScannerOneD.value = true }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.qr_icon),
+                        contentDescription = "1D Scanner Icon",
+                        modifier = Modifier.size(25.dp)
+                    )
                 }
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.barcodescan),
-                    contentDescription = "QR Code Scanner Icon",
-                    modifier = Modifier.size(25.dp)
-                )
+
+                IconButton(
+                    onClick = { navigateToScannerTwoD.value = true }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.barcodescan),
+                        contentDescription = "QR Code Scanner Icon",
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
             }
         }
 
-        // The rest of the keyboard layout
         alphabeticKeysMatrix.forEachIndexed { rowIndex, row ->
             FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 56.dp) {
                 Row(Modifier) {
                     row.forEachIndexed { index, key ->
                         if (key.isNotEmpty()) {
                             when (key) {
-                                "DEL" -> {
-                                    RemoveAll(modifier = Modifier.weight(1f))
-                                }
-
-                                "BS" -> {
-                                    RemoveKey(modifier = Modifier.weight(1f))
-                                }
-
+                                "DEL" -> RemoveAll(modifier = Modifier.weight(1f))
+                                "BS" -> RemoveKey(modifier = Modifier.weight(1f))
                                 "B", "H", "M", "P", "R", "S" -> {
                                     KeyboardKey(
                                         keyboardKey = key,
                                         modifier = Modifier.weight(1f),
                                         backgroundColor = Color(0xFFCCE7EB),
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
+                                        onClick = { currentKeyPressed.value = key }
                                     )
                                 }
-
                                 " " -> {
                                     KeyboardKey(
                                         keyboardKey = key,
                                         modifier = Modifier.weight(3.5f),
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
+                                        onClick = { currentKeyPressed.value = key }
                                     )
                                 }
-
-                                "Enter" -> {
-                                    EnterKey(modifier = Modifier.weight(2f))
-                                }
-
+                                "Enter" -> EnterKey(modifier = Modifier.weight(2f))
                                 else -> {
                                     KeyboardKey(
                                         keyboardKey = key,
                                         modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
+                                        onClick = { currentKeyPressed.value = key }
                                     )
                                 }
                             }
