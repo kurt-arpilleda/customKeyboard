@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -371,12 +372,15 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
 
     class BarcodeAnalyzer(
         private val onBarcodeScanned: (String) -> Unit,
-        private val debounceInterval: Long = 1000 // Default debounce time: 1 second
+        private val debounceInterval: Long = 100,
+        private val threshold: Int = 3 // Number of consecutive matches needed
     ) : ImageAnalysis.Analyzer {
 
         private val reader = MultiFormatReader()
         private var lastScanTime: Long = 0
-        private val lock = Any() // Synchronization lock
+        private val lock = Any()
+
+        private val scanQueue: MutableList<String> = mutableListOf()
 
         @OptIn(ExperimentalGetImage::class)
         override fun analyze(imageProxy: ImageProxy) {
@@ -410,7 +414,24 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
 
                             synchronized(lock) {
                                 if (currentTime - lastScanTime >= debounceInterval) {
-                                    onBarcodeScanned(result.text)
+                                    // Add result to queue
+                                    scanQueue.add(result.text)
+//                                    Log.d("BarcodeAnalyzer", "Added result: ${result.text}")
+//                                    Log.d("BarcodeAnalyzer", "Current queue: $scanQueue")
+
+                                    if (scanQueue.size > threshold) {
+                                        scanQueue.removeAt(0)
+//                                        Log.d("BarcodeAnalyzer", "Queue exceeded threshold, removed oldest entry. New queue: $scanQueue")
+                                    }
+
+                                    // If we have reached the threshold and all entries are equal, trigger scan
+                                    if (scanQueue.size == threshold && scanQueue.all { it == scanQueue[0] }) {
+//                                        Log.d("BarcodeAnalyzer", "Threshold met with consistent barcode: ${result.text}")
+                                        onBarcodeScanned(result.text)
+                                        scanQueue.clear()
+//                                        Log.d("BarcodeAnalyzer", "Queue cleared after triggering scan.")
+                                    }
+
                                     lastScanTime = currentTime
                                 }
                             }
@@ -439,7 +460,6 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
             val rowStride = plane.rowStride
             val pixelStride = plane.pixelStride
 
-            // Remove padding from the Y plane data
             val cleanData = ByteArray(width * height)
             for (y in 0 until height) {
                 for (x in 0 until width) {
@@ -480,6 +500,7 @@ private val cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
     private data class RotatedImage(var byteArray: ByteArray, var width: Int, var height: Int)
+
     @Preview(showBackground = true)
     @Composable
     fun ScannerScreenPreview() {
