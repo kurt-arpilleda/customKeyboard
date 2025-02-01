@@ -145,6 +145,7 @@ class ScannerActivityTwoD : ComponentActivity() {
                                 putExtra("SCANNED_CODE", barcodeValue)
                             }
                             context.sendBroadcast(intent)
+                            finish()
                         }
                     },
                     cameraWidth = cameraWidth,

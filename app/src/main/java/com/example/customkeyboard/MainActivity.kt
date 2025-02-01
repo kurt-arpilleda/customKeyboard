@@ -68,7 +68,6 @@ class MainActivity : AppCompatActivity() {
                     Column(Modifier.fillMaxSize()) {
                         TopAppBarContent()
                         MainContent()
-                        ShowImportantReminderDialog()
                     }
                 }
             }
@@ -86,43 +85,6 @@ class MainActivity : AppCompatActivity() {
                 appUpdateService.checkForAppUpdate()
             }
         }
-    }
-}
-
-@Composable
-fun ShowImportantReminderDialog() {
-    var showDialog by remember { mutableStateOf(true) }
-
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showDialog = false
-            },
-            title = {
-                Text(
-                    text = "Important Reminder",
-                    style = MaterialTheme.typography.h6
-                )
-            },
-            text = {
-                Text(
-                    text = "After selecting this keyboard as your default, clear this app in the background because after scanning, it will be back to this activity and not to the previous page.",
-                    style = MaterialTheme.typography.body2,
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showDialog = false }) {
-                    Text(
-                        text = "OK",
-                        style = MaterialTheme.typography.button
-                    )
-                }
-            },
-            modifier = Modifier.padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-            backgroundColor = MaterialTheme.colors.surface
-        )
     }
 }
 
