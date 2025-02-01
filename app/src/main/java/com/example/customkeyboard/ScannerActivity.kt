@@ -528,6 +528,136 @@ class ScannerActivity : ComponentActivity() {
         }
     }
 
+
+    class TwoDBarcodeAnalyzer(
+        private val onBarcodeScanned: (String) -> Unit,
+        private val debounceInterval: Long = 100,
+        private val threshold: Int = 3 // Number of consecutive matches needed
+    ) : ImageAnalysis.Analyzer {
+
+        private val reader = MultiFormatReader()
+        private var lastScanTime: Long = 0
+        private val lock = Any()
+
+        private val scanQueue: MutableList<String> = mutableListOf()
+
+        @OptIn(ExperimentalGetImage::class)
+        override fun analyze(imageProxy: ImageProxy) {
+            try {
+                imageProxy.image?.let {
+                    if ((it.format == ImageFormat.YUV_420_888
+                                || it.format == ImageFormat.YUV_422_888
+                                || it.format == ImageFormat.YUV_444_888)
+                        && it.planes.size == 3) {
+
+                        val luminanceData = getLuminancePlaneData(imageProxy)
+                        val rotatedImage = RotatedImage(luminanceData, imageProxy.width, imageProxy.height)
+                        rotateImageArray(rotatedImage, imageProxy.imageInfo.rotationDegrees)
+
+                        val source = PlanarYUVLuminanceSource(
+                            rotatedImage.byteArray,
+                            rotatedImage.width,
+                            rotatedImage.height,
+                            0,
+                            0,
+                            rotatedImage.width,
+                            rotatedImage.height,
+                            false
+                        )
+
+                        val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+
+                        try {
+                            val result = reader.decodeWithState(binaryBitmap)
+                            val currentTime = System.currentTimeMillis()
+
+                            synchronized(lock) {
+                                if (currentTime - lastScanTime >= debounceInterval) {
+                                    // Add result to queue
+                                    scanQueue.add(result.text)
+//                                    Log.d("BarcodeAnalyzer", "Added result: ${result.text}")
+//                                    Log.d("BarcodeAnalyzer", "Current queue: $scanQueue")
+
+                                    if (scanQueue.size > threshold) {
+                                        scanQueue.removeAt(0)
+//                                        Log.d("BarcodeAnalyzer", "Queue exceeded threshold, removed oldest entry. New queue: $scanQueue")
+                                    }
+
+                                    // If we have reached the threshold and all entries are equal, trigger scan
+                                    if (scanQueue.size == threshold && scanQueue.all { it == scanQueue[0] }) {
+//                                        Log.d("BarcodeAnalyzer", "Threshold met with consistent barcode: ${result.text}")
+                                        onBarcodeScanned(result.text)
+                                        scanQueue.clear()
+//                                        Log.d("BarcodeAnalyzer", "Queue cleared after triggering scan.")
+                                    }
+
+                                    lastScanTime = currentTime
+                                }
+                            }
+                        } catch (e: NotFoundException) {
+                            // No barcode found
+                        } finally {
+                            reader.reset()
+                        }
+                    }
+                }
+            } catch (e: IllegalStateException) {
+                e.printStackTrace()
+            } finally {
+                imageProxy.close()
+            }
+        }
+
+        private fun getLuminancePlaneData(image: ImageProxy): ByteArray {
+            val plane = image.planes[0]
+            val buf: ByteBuffer = plane.buffer
+            val data = ByteArray(buf.remaining())
+            buf.get(data)
+            buf.rewind()
+            val width = image.width
+            val height = image.height
+            val rowStride = plane.rowStride
+            val pixelStride = plane.pixelStride
+
+            val cleanData = ByteArray(width * height)
+            for (y in 0 until height) {
+                for (x in 0 until width) {
+                    cleanData[y * width + x] = data[y * rowStride + x * pixelStride]
+                }
+            }
+            return cleanData
+        }
+
+        private fun rotateImageArray(imageToRotate: RotatedImage, rotationDegrees: Int) {
+            if (rotationDegrees == 0) return
+            if (rotationDegrees % 90 != 0) return
+
+            val width = imageToRotate.width
+            val height = imageToRotate.height
+
+            val rotatedData = ByteArray(imageToRotate.byteArray.size)
+            for (y in 0 until height) {
+                for (x in 0 until width) {
+                    when (rotationDegrees) {
+                        90 -> rotatedData[x * height + height - y - 1] =
+                            imageToRotate.byteArray[x + y * width]
+                        180 -> rotatedData[width * (height - y - 1) + width - x - 1] =
+                            imageToRotate.byteArray[x + y * width]
+                        270 -> rotatedData[y + x * height] =
+                            imageToRotate.byteArray[y * width + width - x - 1]
+                    }
+                }
+            }
+
+            imageToRotate.byteArray = rotatedData
+
+            if (rotationDegrees != 180) {
+                imageToRotate.height = width
+                imageToRotate.width = height
+            }
+        }
+    }
+
     private data class RotatedImage(var byteArray: ByteArray, var width: Int, var height: Int)
 
     @Preview(showBackground = true)
