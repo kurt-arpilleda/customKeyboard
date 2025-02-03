@@ -367,7 +367,7 @@ class ScannerActivityOneD : ComponentActivity() {
                 }
             } else {
                 Text(
-                    text = "Preparing Scanner...",
+                    text = "Preparing 1D Scanner...",
                     modifier = Modifier.align(Alignment.Center),
                     style = MaterialTheme.typography.h6
                 )
