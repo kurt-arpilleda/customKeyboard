@@ -17,11 +17,13 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
+import androidx.camera.core.CameraControl
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
@@ -63,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
@@ -73,6 +76,7 @@ import com.google.zxing.common.HybridBinarizer
 import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class ScannerActivityOneD : ComponentActivity() {
     private val cameraExecutor = Executors.newSingleThreadExecutor()
@@ -253,23 +257,38 @@ class ScannerActivityOneD : ComponentActivity() {
         var showCenterLine by remember { mutableStateOf(false) }
         val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
-        // Convert DP dimensions to pixels once
         val frameWidthPx = remember(cameraWidth) { (cameraWidth.value * density).toInt() }
         val frameHeightPx = remember(cameraHeight) { (cameraHeight.value * density).toInt() }
+
+        LocalLifecycleOwner.current
+        var cameraControl: CameraControl? by remember { mutableStateOf(null) }
 
         LaunchedEffect(Unit) {
             delay(500)
             delayCompleted = true
         }
 
+        // 🔥 Auto-Focus Every 1 Second
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(1000) // 🔄 Refocus every 1 second
+                cameraControl?.let { control ->
+                    val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
+                    val autoFocusPoint = factory.createPoint(0.5f, 0.5f)
+                    val action = FocusMeteringAction.Builder(autoFocusPoint).setAutoCancelDuration(1, TimeUnit.SECONDS).build()
+                    control.startFocusAndMetering(action)
+                }
+            }
+        }
+
         LaunchedEffect(flashlightOn) {
             val cameraProvider = cameraProviderFuture.get()
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            val cameraControl = cameraProvider.bindToLifecycle(
+            cameraControl = cameraProvider.bindToLifecycle(
                 context as ComponentActivity,
                 cameraSelector
             ).cameraControl
-            cameraControl.enableTorch(flashlightOn)
+            cameraControl?.enableTorch(flashlightOn)
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
@@ -288,7 +307,6 @@ class ScannerActivityOneD : ComponentActivity() {
                                     it.setSurfaceProvider(previewView.surfaceProvider)
                                 }
 
-                                // Wait for previewView layout
                                 previewView.post {
                                     val imageAnalyzer = ImageAnalysis.Builder()
                                         .setTargetResolution(
@@ -303,7 +321,6 @@ class ScannerActivityOneD : ComponentActivity() {
                                                 onBarcodeScanned = { barcode ->
                                                     onBarcodeScanned(barcode)
                                                     showCenterLine = true
-                                                    // Vibrate on scan
                                                     (ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.let {
                                                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                                             it.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
@@ -323,12 +340,15 @@ class ScannerActivityOneD : ComponentActivity() {
                                         }
 
                                     cameraProvider.unbindAll()
-                                    cameraProvider.bindToLifecycle(
+                                    val camera = cameraProvider.bindToLifecycle(
                                         ctx as ComponentActivity,
                                         cameraSelector,
                                         preview,
                                         imageAnalyzer
                                     )
+
+                                    // Store CameraControl for Auto-Focus
+                                    cameraControl = camera.cameraControl
                                 }
                             }, ContextCompat.getMainExecutor(ctx))
 
@@ -346,7 +366,6 @@ class ScannerActivityOneD : ComponentActivity() {
                         val centerX = (size.width - frameWidth) / 2
                         val centerY = (size.height - frameHeight) / 2
 
-                        // Draw transparent scanning window
                         drawRect(
                             color = Color.Transparent,
                             topLeft = Offset(centerX, centerY),
@@ -354,7 +373,6 @@ class ScannerActivityOneD : ComponentActivity() {
                             blendMode = BlendMode.Clear
                         )
 
-                        // Draw center line when scanned
                         if (showCenterLine) {
                             drawLine(
                                 color = Color.Green,
