@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.customkeyboard"
         minSdk = 28
         targetSdk = 34
-        versionCode = 30
-        versionName = "3.9"
+        versionCode = 31
+        versionName = "4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -69,4 +69,5 @@ dependencies {
     implementation ("androidx.camera:camera-lifecycle:${camerax_version}")
     implementation ("androidx.camera:camera-view:${camerax_version}")
     implementation ("com.google.zxing:core:3.5.3")
+    implementation ("androidx.navigation:navigation-compose:2.8.8")
 }

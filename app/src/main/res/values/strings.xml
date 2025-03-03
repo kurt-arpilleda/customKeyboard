@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">ARKeyboard</string>
+
+    <string-array name="version_history_en">
+        <item>4.0 - Added a dashboard screen to display the app’s version history.</item>
+        <item>1.0 – 3.9 - Initial release with core features, including a keyboard screen and a barcode scanner. Tested and integrated various Barcode Scanner APIs.</item>
+    </string-array>
+    <string-array name="version_history_jp">
+        <item>4.0 - アプリのバージョン履歴を表示するダッシュボード画面を追加しました。</item>
+        <item>1.0 – 3.9 - 初期リリースでは、キーボード画面とバーコードスキャナーを含む基本機能を搭載しました。さまざまなバーコードスキャナーAPIをテストして統合しました。</item>
+    </string-array>
+
 </resources>
