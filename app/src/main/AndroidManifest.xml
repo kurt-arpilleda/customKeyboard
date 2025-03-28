@@ -52,19 +52,23 @@
             android:label="1D Scanner"
             tools:replace="screenOrientation"
             android:noHistory="true"
+            android:launchMode="singleInstance"
+            android:windowSoftInputMode="stateAlwaysHidden"
             android:screenOrientation="sensorPortrait"
             android:exported="true" />
         <activity android:name=".ScannerActivityTwoD"
             android:label="2D Scanner"
             tools:replace="screenOrientation"
             android:noHistory="true"
+            android:launchMode="singleInstance"
+            android:windowSoftInputMode="stateAlwaysHidden"
             android:screenOrientation="sensorPortrait"
             android:exported="true" />
         <service
             android:name=".IMEService"
+            android:exported="true"
             android:label="ARKeyboard"
-            android:permission="android.permission.BIND_INPUT_METHOD"
-            android:exported="false">
+            android:permission="android.permission.BIND_INPUT_METHOD">
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
             </intent-filter>
