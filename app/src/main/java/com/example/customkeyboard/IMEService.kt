@@ -24,115 +24,114 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.AbstractComposeView
 
-class IMEService : LifecycleInputMethodService(),
+class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStateRegistryOwner {
 
-    ViewModelStoreOwner,
+    private val store = ViewModelStore()
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    private val handler = Handler(Looper.getMainLooper())
+    private var currentScannedCode: String? = null
+    private var processingInProgress = false
 
-    SavedStateRegistryOwner {
+    // BroadcastReceiver to handle scanned codes
+    private val scannedCodeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val scannedCode = intent.getStringExtra("SCANNED_CODE") ?: return
+
+            Log.d("IMEService", "Received scanned code: $scannedCode")
+
+            // Cancel any pending processing
+            handler.removeCallbacksAndMessages(null)
+
+            currentScannedCode = scannedCode
+            processingInProgress = true
+
+            // Ensure we have focus before processing the code
+            ensureInputFocus {
+                processCurrentCode()
+            }
+        }
+    }
+
     override fun onCreateInputView(): View {
         val view = ComposeKeyboardView(this)
         window?.window?.decorView?.let { decorView ->
             decorView.setViewTreeLifecycleOwner(this)
             decorView.setViewTreeViewModelStoreOwner(this)
             decorView.setViewTreeSavedStateRegistryOwner(this)
-            decorView.post {
-                decorView.requestFocus()
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(decorView, InputMethodManager.SHOW_IMPLICIT)
-            }
         }
         return view
     }
+
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate() {
         super.onCreate()
         savedStateRegistryController.performRestore(null)
-// Register the broadcast receiver for scanned codes
         val filter = IntentFilter("com.example.customkeyboard.SCANNED_CODE")
         registerReceiver(scannedCodeReceiver, filter, RECEIVER_EXPORTED)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-// Unregister the broadcast receiver
         unregisterReceiver(scannedCodeReceiver)
+        handler.removeCallbacksAndMessages(null)
     }
+
     override val viewModelStore: ViewModelStore
         get() = store
+
     override val lifecycle: Lifecycle
         get() = dispatcher.lifecycle
-    private val store = ViewModelStore()
-    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateRegistryController.savedStateRegistry
-    // Map to track the frequency of received codes
-    private val codeFrequencyMap = mutableMapOf<String, Int>()
-    // List to track the order of received codes
-    private val receivedCodes = mutableListOf<String>()
-    // BroadcastReceiver to handle scanned codes
-    private val scannedCodeReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val scannedCode = intent.getStringExtra("SCANNED_CODE")
-            if (!scannedCode.isNullOrEmpty()) {
-                // Increment the count for the scanned code
-                codeFrequencyMap[scannedCode] = codeFrequencyMap.getOrDefault(scannedCode, 0) + 1
-                // Add to the received codes list
-                receivedCodes.add(scannedCode)
 
-                // Request focus for the IME
-                requestFocus()
-
-                // Post a delayed action to process the most frequent or last code
-                Handler(Looper.getMainLooper()).postDelayed({
-                    processCode()
-                }, 1000)
-            }
-        }
-    }
-
-    private fun requestFocus() {
+    private fun ensureInputFocus(callback: () -> Unit) {
         window?.window?.decorView?.let { view ->
             view.post {
                 view.requestFocus()
                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+                callback()
             }
+            return
         }
+        callback()
     }
-    private fun processCode() {
-        if (codeFrequencyMap.isNotEmpty()) {
-// Determine if there are duplicates
-            val hasDuplicates = codeFrequencyMap.values.any { it > 1 }
-            val codeToCommit = if (hasDuplicates) {
-// Find the code with the highest frequency
-                codeFrequencyMap.maxByOrNull { it.value }?.key
-            } else {
-// No duplicates, get the last received code
-                receivedCodes.lastOrNull()
-            }
-            codeToCommit?.let {
-                currentInputConnection?.apply {
-// Commit the selected code
-                    commitText(it, 1)
-// Simulate the "Enter" key press (KeyEvent.KEYCODE_ENTER)
-                    val enterKeyEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)
-                    sendKeyEvent(enterKeyEvent)
-// Simulate key up for "Enter" to complete the action
-                    val enterKeyUpEvent = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER)
-                    sendKeyEvent(enterKeyUpEvent)
 
-                }
-//                Log.d("IMEService", "Committed code: $it")
-// Clear the frequency map and received codes list after committing
-                codeFrequencyMap.clear()
-                receivedCodes.clear()
+    private fun processCurrentCode() {
+        currentScannedCode?.let { code ->
+            Log.d("IMEService", "Processing code: $code")
+
+            currentInputConnection?.apply {
+                // Commit the text
+                commitText(code, 1)
+
+                // Simulate Enter key press
+                val now = System.currentTimeMillis()
+                val downEvent = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, 0)
+                val upEvent = KeyEvent(now, now + 100, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER, 0)
+
+                sendKeyEvent(downEvent)
+                sendKeyEvent(upEvent)
+
+                Log.d("IMEService", "Code committed: $code")
+            } ?: run {
+                Log.e("IMEService", "No current input connection")
+                // Retry after a short delay if we don't have input connection
+                handler.postDelayed({
+                    processCurrentCode()
+                }, 100)
             }
         }
+
+        // Reset state
+        currentScannedCode = null
+        processingInProgress = false
     }
 }
+
 // Custom Compose view for the keyboard
 class ComposeKeyboardView(context: Context) : AbstractComposeView(context) {
-
     @Composable
     override fun Content() {
         KeyboardScreen()

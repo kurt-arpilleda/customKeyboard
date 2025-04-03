@@ -71,6 +71,7 @@ import com.google.zxing.common.HybridBinarizer
 import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
+import androidx.core.net.toUri
 
 class ScannerActivity : ComponentActivity() {
     private val cameraExecutor = Executors.newSingleThreadExecutor()
@@ -139,7 +140,7 @@ class ScannerActivity : ComponentActivity() {
                     onBarcodeScanned = { barcodeValue ->
                         if (barcodeValue.startsWith("http://") || barcodeValue.startsWith("https://")) {
                             // It's a link, open it in the browser
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(barcodeValue))
+                            val intent = Intent(Intent.ACTION_VIEW, barcodeValue.toUri())
                             context.startActivity(intent)
                         } else {
                             val intent = Intent().apply {
