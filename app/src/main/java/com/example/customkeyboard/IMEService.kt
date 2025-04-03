@@ -60,11 +60,11 @@ class IMEService : LifecycleInputMethodService(),
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateRegistryController.savedStateRegistry
-// Map to track the frequency of received codes
+    // Map to track the frequency of received codes
     private val codeFrequencyMap = mutableMapOf<String, Int>()
-// List to track the order of received codes
+    // List to track the order of received codes
     private val receivedCodes = mutableListOf<String>()
-// BroadcastReceiver to handle scanned codes
+    // BroadcastReceiver to handle scanned codes
     private val scannedCodeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val scannedCode = intent.getStringExtra("SCANNED_CODE")

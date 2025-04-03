@@ -19,7 +19,6 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-
     <application
         android:largeHeap="true"
         android:allowBackup="true"
@@ -48,27 +47,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ScannerActivityOneD"
-            android:label="1D Scanner"
-            tools:replace="screenOrientation"
+        <activity android:name=".ScannerActivity"
+            android:label="QR Scanner"
             android:noHistory="true"
-            android:launchMode="singleInstance"
-            android:windowSoftInputMode="stateAlwaysHidden"
-            android:screenOrientation="sensorPortrait"
-            android:exported="true" />
-        <activity android:name=".ScannerActivityTwoD"
-            android:label="2D Scanner"
             tools:replace="screenOrientation"
-            android:noHistory="true"
-            android:launchMode="singleInstance"
-            android:windowSoftInputMode="stateAlwaysHidden"
             android:screenOrientation="sensorPortrait"
             android:exported="true" />
         <service
             android:name=".IMEService"
-            android:exported="true"
             android:label="ARKeyboard"
-            android:permission="android.permission.BIND_INPUT_METHOD">
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
             </intent-filter>

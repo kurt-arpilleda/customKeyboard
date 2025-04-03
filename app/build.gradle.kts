@@ -70,4 +70,5 @@ dependencies {
     implementation ("androidx.camera:camera-view:${camerax_version}")
     implementation ("com.google.zxing:core:3.5.3")
     implementation ("androidx.navigation:navigation-compose:2.8.8")
+    implementation ("com.google.accompanist:accompanist-permissions:0.34.0")
 }
