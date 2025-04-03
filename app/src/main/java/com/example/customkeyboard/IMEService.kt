@@ -10,6 +10,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStore
@@ -29,12 +30,16 @@ class IMEService : LifecycleInputMethodService(),
 
     SavedStateRegistryOwner {
     override fun onCreateInputView(): View {
-
         val view = ComposeKeyboardView(this)
         window?.window?.decorView?.let { decorView ->
             decorView.setViewTreeLifecycleOwner(this)
             decorView.setViewTreeViewModelStoreOwner(this)
             decorView.setViewTreeSavedStateRegistryOwner(this)
+            decorView.post {
+                decorView.requestFocus()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(decorView, InputMethodManager.SHOW_IMPLICIT)
+            }
         }
         return view
     }
@@ -69,15 +74,28 @@ class IMEService : LifecycleInputMethodService(),
         override fun onReceive(context: Context, intent: Intent) {
             val scannedCode = intent.getStringExtra("SCANNED_CODE")
             if (!scannedCode.isNullOrEmpty()) {
-// Increment the count for the scanned code
+                // Increment the count for the scanned code
                 codeFrequencyMap[scannedCode] = codeFrequencyMap.getOrDefault(scannedCode, 0) + 1
-// Add to the received codes list
+                // Add to the received codes list
                 receivedCodes.add(scannedCode)
-//                Log.d("IMEService", "Received scanned code: $scannedCode")
-// Post a delayed action to process the most frequent or last code
+
+                // Request focus for the IME
+                requestFocus()
+
+                // Post a delayed action to process the most frequent or last code
                 Handler(Looper.getMainLooper()).postDelayed({
                     processCode()
                 }, 1000)
+            }
+        }
+    }
+
+    private fun requestFocus() {
+        window?.window?.decorView?.let { view ->
+            view.post {
+                view.requestFocus()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
             }
         }
     }

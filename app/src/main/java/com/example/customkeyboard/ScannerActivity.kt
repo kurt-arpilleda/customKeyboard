@@ -1,6 +1,7 @@
 package com.example.customkeyboard
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,6 +13,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
 import android.util.Log
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -146,6 +148,13 @@ class ScannerActivity : ComponentActivity() {
                             }
                             context.sendBroadcast(intent)
                             finish()
+                            // Request IME focus after finishing
+                            (context as? Activity)?.window?.decorView?.let { view ->
+                                view.post {
+                                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                    imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+                                }
+                            }
                         }
                     },
                     cameraWidth = cameraWidth,
