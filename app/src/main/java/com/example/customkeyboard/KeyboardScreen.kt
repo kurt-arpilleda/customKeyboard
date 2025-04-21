@@ -50,120 +50,104 @@ fun KeyboardScreen() {
         arrayOf("P", "R", "S", "1", "2", "3"),
         arrayOf("-", "", "", "0", "Enter")
     )
-    val context = LocalContext.current // Access the current context
+    val context = LocalContext.current
     val currentKeyPressed = remember { mutableStateOf("") }
-    val navigateToScanner = remember { mutableStateOf(false) } // Flag for navigation
+    val showScannerScreen = remember { mutableStateOf(false) } // Flag to show ScannerScreen
 
-
-//    LaunchedEffect(navigateToScanner.value) {
-//        if (navigateToScanner.value) {
-//            val intent = Intent(context, ScannerActivity::class.java)
-//            if (context !is Activity) {
-//                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-//            }
-//            context.startActivity(intent)
-//            if (context is Activity) {
-//                context.overridePendingTransition(
-//                    R.anim.animate_fade_enter,
-//                    R.anim.animate_fade_exit
-//                ) // Apply transition animation
-//            }
-//            navigateToScanner.value = false // Reset the flag
-//        }
-//    }
-    Column(
-        modifier = Modifier
-            .background(Color(0xFFA2ABBA))
-            .fillMaxWidth(),
-    ) {
-        // Add a row for the top-left and top-right corner icons
-        Row(
+    if (showScannerScreen.value) {
+        ScannerScreen(
+            onClose = { showScannerScreen.value = false }
+        )
+    } else {
+        Column(
             modifier = Modifier
+                .background(Color(0xFFA2ABBA))
                 .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween // Space out the icons
         ) {
-            IconButton(
-                onClick = {
-                    val imm = context.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showInputMethodPicker() // Show the input method picker dialog
-                }
+            // Add a row for the top-left and top-right corner icons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.changekeyboard), // Replace with your keyboard icon resource
-                    contentDescription = "Keyboard Icon",
-                    modifier = Modifier.size(25.dp)
-                )
+                IconButton(
+                    onClick = {
+                        val imm = context.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showInputMethodPicker()
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.changekeyboard),
+                        contentDescription = "Keyboard Icon",
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        showScannerScreen.value = true // Show ScannerScreen instead of launching activity
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.barcodescan),
+                        contentDescription = "QR Code Scanner Icon",
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
             }
 
-            IconButton(
-                onClick = {
-                    navigateToScanner.value = true // Set flag to true to trigger the intent
-                }
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.barcodescan),
-                    contentDescription = "QR Code Scanner Icon",
-                    modifier = Modifier.size(25.dp)
-                )
-            }
-        }
-
-        // The rest of the keyboard layout
-        alphabeticKeysMatrix.forEachIndexed { rowIndex, row ->
-            FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 56.dp) {
-                Row(Modifier) {
-                    row.forEachIndexed { index, key ->
-                        if (key.isNotEmpty()) {
-                            when (key) {
-                                "DEL" -> {
-                                    RemoveAll(modifier = Modifier.weight(1f))
+            // The rest of the keyboard layout
+            alphabeticKeysMatrix.forEachIndexed { rowIndex, row ->
+                FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 56.dp) {
+                    Row(Modifier) {
+                        row.forEachIndexed { index, key ->
+                            if (key.isNotEmpty()) {
+                                when (key) {
+                                    "DEL" -> {
+                                        RemoveAll(modifier = Modifier.weight(1f))
+                                    }
+                                    "BS" -> {
+                                        RemoveKey(modifier = Modifier.weight(1f))
+                                    }
+                                    "B", "H", "M", "P", "R", "S" -> {
+                                        KeyboardKey(
+                                            keyboardKey = key,
+                                            modifier = Modifier.weight(1f),
+                                            backgroundColor = Color(0xFFCCE7EB),
+                                            onClick = {
+                                                currentKeyPressed.value = key
+                                            }
+                                        )
+                                    }
+                                    " " -> {
+                                        KeyboardKey(
+                                            keyboardKey = key,
+                                            modifier = Modifier.weight(3.5f),
+                                            onClick = {
+                                                currentKeyPressed.value = key
+                                            }
+                                        )
+                                    }
+                                    "Enter" -> {
+                                        EnterKey(modifier = Modifier.weight(2f))
+                                    }
+                                    else -> {
+                                        KeyboardKey(
+                                            keyboardKey = key,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = {
+                                                currentKeyPressed.value = key
+                                            }
+                                        )
+                                    }
                                 }
-
-                                "BS" -> {
-                                    RemoveKey(modifier = Modifier.weight(1f))
-                                }
-
-                                "B", "H", "M", "P", "R", "S" -> {
-                                    KeyboardKey(
-                                        keyboardKey = key,
-                                        modifier = Modifier.weight(1f),
-                                        backgroundColor = Color(0xFFCCE7EB),
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
-                                    )
-                                }
-
-                                " " -> {
-                                    KeyboardKey(
-                                        keyboardKey = key,
-                                        modifier = Modifier.weight(3.5f),
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
-                                    )
-                                }
-
-                                "Enter" -> {
-                                    EnterKey(modifier = Modifier.weight(2f))
-                                }
-
-                                else -> {
-                                    KeyboardKey(
-                                        keyboardKey = key,
-                                        modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
-                                    )
-                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .alpha(0f)
+                                )
                             }
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .alpha(0f)
-                            )
                         }
                     }
                 }

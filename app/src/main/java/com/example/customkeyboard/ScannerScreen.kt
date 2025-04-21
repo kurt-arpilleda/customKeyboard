@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -62,44 +63,55 @@ import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
+class IMEServiceLifecycleOwner(private val imeService: LifecycleInputMethodService) : androidx.lifecycle.LifecycleOwner {
+    override val lifecycle: androidx.lifecycle.Lifecycle
+        get() = imeService.lifecycle
+}
+
 @Composable
-fun ScannerScreen() {
-        var isCameraActive by remember { mutableStateOf(true) }
-        var cameraWidth by remember { mutableStateOf(330.dp) }
-        var cameraHeight by remember { mutableStateOf(80.dp) }
-        val context = LocalContext.current
-        var flashlightOn by remember { mutableStateOf(false) }
-        var isQrMode by remember { mutableStateOf(false) } // false = barcode, true = QR code
+fun ScannerScreen(onClose: () -> Unit) {
+    var isCameraActive by remember { mutableStateOf(true) }
+    var cameraWidth by remember { mutableStateOf(330.dp) }
+    var cameraHeight by remember { mutableStateOf(80.dp) }
+    val context = LocalContext.current
+    var flashlightOn by remember { mutableStateOf(false) }
+    var isQrMode by remember { mutableStateOf(false) }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (isCameraActive) {
-                CameraScanner(
-                    onBarcodeScanned = { barcodeValue ->
-                        if (barcodeValue.startsWith("http://") || barcodeValue.startsWith("https://")) {
-                            // It's a link, open it in the browser
-                            val intent = Intent(Intent.ACTION_VIEW, barcodeValue.toUri())
-                            context.startActivity(intent)
-                        } else {
-                            val intent = Intent().apply {
-                                action = "com.example.customkeyboard.SCANNED_CODE"
-                                putExtra("SCANNED_CODE", barcodeValue)
-                            }
-                            context.sendBroadcast(intent)
-                            // Request IME focus after finishing
-                            (context as? Activity)?.window?.decorView?.let { view ->
-                                view.post {
-                                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                                    imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
-                                }
-                            }
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Add a close button at the top
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                contentDescription = "Close Scanner",
+                tint = Color.White
+            )
+        }
+
+        if (isCameraActive) {
+            CameraScanner(
+                onBarcodeScanned = { barcodeValue ->
+                    if (barcodeValue.startsWith("http://") || barcodeValue.startsWith("https://")) {
+                        val intent = Intent(Intent.ACTION_VIEW, barcodeValue.toUri())
+                        context.startActivity(intent)
+                    } else {
+                        val intent = Intent().apply {
+                            action = "com.example.customkeyboard.SCANNED_CODE"
+                            putExtra("SCANNED_CODE", barcodeValue)
                         }
-                    },
-                    cameraWidth = cameraWidth,
-                    cameraHeight = cameraHeight,
-                    flashlightOn = flashlightOn
-                )
-            }
-
+                        context.sendBroadcast(intent)
+                        onClose() // Close the scanner after successful scan
+                    }
+                },
+                cameraWidth = cameraWidth,
+                cameraHeight = cameraHeight,
+                flashlightOn = flashlightOn
+            )
+        }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -181,140 +193,151 @@ fun ScannerScreen() {
         }
     }
 
-    @Composable
-    fun CameraScanner(
-        onBarcodeScanned: (String) -> Unit,
-        cameraWidth: Dp,
-        cameraHeight: Dp,
-        flashlightOn: Boolean
-    ) {
-        val context = LocalContext.current
-        val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-        var delayCompleted by remember { mutableStateOf(false) }
-        var showCenterLine by remember { mutableStateOf(false) }
-        val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+@Composable
+fun CameraScanner(
+    onBarcodeScanned: (String) -> Unit,
+    cameraWidth: Dp,
+    cameraHeight: Dp,
+    flashlightOn: Boolean
+) {
+    val context = LocalContext.current
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    var showCenterLine by remember { mutableStateOf(false) }
+    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
-        LaunchedEffect(Unit) {
-            delay(500)
-            delayCompleted = true
-        }
+    // Get the lifecycle owner based on context type
+    val lifecycleOwner = when (context) {
+        is ComponentActivity -> context
+        is LifecycleInputMethodService -> IMEServiceLifecycleOwner(context)
+        else -> null
+    }
 
-        LaunchedEffect(flashlightOn) {
+    LaunchedEffect(flashlightOn) {
+        if (lifecycleOwner != null) {
             val cameraProvider = cameraProviderFuture.get()
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            val cameraControl = cameraProvider.bindToLifecycle(
-                context as ComponentActivity,
-                cameraSelector
-            ).cameraControl
-
-            cameraControl.enableTorch(flashlightOn)
+            try {
+                val camera = cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector
+                )
+                camera.cameraControl.enableTorch(flashlightOn)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
+    }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (delayCompleted) {
-                Box(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    AndroidView(
-                        factory = { ctx ->
-                            val previewView = androidx.camera.view.PreviewView(ctx)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    val previewView = androidx.camera.view.PreviewView(ctx)
 
-                            cameraProviderFuture.addListener({
-                                val cameraProvider = cameraProviderFuture.get()
-                                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                    cameraProviderFuture.addListener({
+                        val cameraProvider = cameraProviderFuture.get()
+                        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-                                val preview = androidx.camera.core.Preview.Builder().build().also {
-                                    it.setSurfaceProvider(previewView.surfaceProvider)
-                                }
+                        val preview = androidx.camera.core.Preview.Builder().build().also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
+                        }
 
-                                val imageAnalyzer = ImageAnalysis.Builder()
-                                    .setTargetResolution(
-                                        android.util.Size(
-                                            cameraWidth.value.toInt(),
-                                            cameraHeight.value.toInt()
-                                        )
+                        val imageAnalyzer = ImageAnalysis.Builder()
+                            .setTargetResolution(
+                                android.util.Size(
+                                    cameraWidth.value.toInt(),
+                                    cameraHeight.value.toInt()
+                                )
+                            )
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .build()
+                            .also {
+                                it.setAnalyzer(
+                                    cameraExecutor,
+                                    BarcodeAnalyzer(
+                                        onBarcodeScanned = { barcode ->
+                                            onBarcodeScanned(barcode)
+                                            showCenterLine = true
+                                            val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+                                            } else {
+                                                @Suppress("DEPRECATION")
+                                                vibrator.vibrate(100)
+                                            }
+                                        }
                                     )
-                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                    .build()
-                                    .also {
-                                        it.setAnalyzer(
-                                            cameraExecutor,
-                                            BarcodeAnalyzer(
-                                                onBarcodeScanned = { barcode ->
-                                                    onBarcodeScanned(barcode)
-                                                    showCenterLine = true
-                                                    val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                        vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
-                                                    } else {
-                                                        vibrator.vibrate(100)
-                                                    }
-                                                }
-                                            )
-                                        )
-                                    }
+                                )
+                            }
+
+                        try {
+                            // Clear all previous bindings
+                            cameraProvider.unbindAll()
+
+                            // Check if the lifecycleOwner is available before binding
+                            if (lifecycleOwner != null) {
+                                val camera = cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    imageAnalyzer
+                                )
 
                                 val meterFactory = previewView.meteringPointFactory
                                 val centerX = previewView.width / 2f
                                 val centerY = previewView.height / 2f
                                 val centerMeteringPoint = meterFactory.createPoint(centerX, centerY)
 
-                                val cameraControl = cameraProvider.bindToLifecycle(
-                                    ctx as ComponentActivity,
-                                    cameraSelector,
-                                    preview,
-                                    imageAnalyzer
-                                ).cameraControl
+                                val action = FocusMeteringAction.Builder(centerMeteringPoint).build()
+                                camera.cameraControl.startFocusAndMetering(action)
 
-                                val action = FocusMeteringAction.Builder(centerMeteringPoint)
-                                    .build()
-                                cameraControl.startFocusAndMetering(action)
-
-                            }, ContextCompat.getMainExecutor(ctx))
-
-                            previewView
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    Canvas(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        val dimColor = Color.Black.copy(alpha = 0.8f)
-                        drawRect(color = dimColor)
-
-                        val frameWidth = cameraWidth.toPx()
-                        val frameHeight = cameraHeight.toPx()
-                        val centerX = (size.width - frameWidth) / 2
-                        val centerY = (size.height - frameHeight) / 2
-
-                        drawRect(
-                            color = Color.Transparent,
-                            topLeft = Offset(centerX, centerY),
-                            size = androidx.compose.ui.geometry.Size(frameWidth, frameHeight),
-                            blendMode = BlendMode.Clear
-                        )
-
-                        if (showCenterLine) {
-                            val centerLineY = (size.height / 2)
-                            drawLine(
-                                color = Color.Green,
-                                start = Offset(centerX, centerLineY),
-                                end = Offset(centerX + frameWidth, centerLineY),
-                                strokeWidth = 6f
-                            )
+                                // Set torch state
+                                camera.cameraControl.enableTorch(flashlightOn)
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         }
-                    }
-                }
-            } else {
-                Text(
-                    text = "Preparing Scanner...",
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.h6
+
+                    }, ContextCompat.getMainExecutor(ctx))
+
+                    previewView
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            Canvas(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val dimColor = Color.Black.copy(alpha = 0.8f)
+                drawRect(color = dimColor)
+
+                val frameWidth = cameraWidth.toPx()
+                val frameHeight = cameraHeight.toPx()
+                val centerX = (size.width - frameWidth) / 2
+                val centerY = (size.height - frameHeight) / 2
+
+                drawRect(
+                    color = Color.Transparent,
+                    topLeft = Offset(centerX, centerY),
+                    size = androidx.compose.ui.geometry.Size(frameWidth, frameHeight),
+                    blendMode = BlendMode.Clear
                 )
+
+                if (showCenterLine) {
+                    val centerLineY = (size.height / 2)
+                    drawLine(
+                        color = Color.Green,
+                        start = Offset(centerX, centerLineY),
+                        end = Offset(centerX + frameWidth, centerLineY),
+                        strokeWidth = 6f
+                    )
+                }
             }
         }
     }
+}
 
     class BarcodeAnalyzer(
         private val onBarcodeScanned: (String) -> Unit,
@@ -447,8 +470,9 @@ fun ScannerScreen() {
 
     private data class RotatedImage(var byteArray: ByteArray, var width: Int, var height: Int)
 
-    @Preview(showBackground = true)
-    @Composable
-    fun ScannerScreenPreview() {
-        ScannerScreen()
-    }
+//    @Preview(showBackground = true)
+//    @Composable
+//    fun ScannerScreenPreview() {
+//        ScannerScreen()
+//    }
+
