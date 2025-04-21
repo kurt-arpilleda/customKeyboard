@@ -1,12 +1,15 @@
 package com.example.customkeyboard
 
+import android.Manifest
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -43,6 +46,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +64,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -73,6 +79,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appUpdateService: AppUpdateService
     private lateinit var connectivityReceiver: NetworkUtils.ConnectivityReceiver
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
+
+    // Camera permission launcher
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            // Permission denied, show rationale if needed
+            showPermissionRationale = true
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,7 +114,63 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
 
+    override fun onResume() {
+        super.onResume()
+        // Check camera permission when activity resumes
+        checkCameraPermission()
+    }
+
+    private fun checkCameraPermission() {
+        when {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED -> {
+                // Permission already granted
+                showPermissionRationale = false
+            }
+            shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) -> {
+                // Show rationale for permission
+                showPermissionRationale = true
+            }
+            else -> {
+                // Request permission
+                requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+        }
+    }
+
+    // State for showing permission rationale dialog
+    private var showPermissionRationale by mutableStateOf(false)
+
+    @Composable
+    fun CameraPermissionDialog() {
+        if (showPermissionRationale) {
+            AlertDialog(
+                onDismissRequest = { showPermissionRationale = false },
+                title = { Text("Camera Permission Required") },
+                text = { Text("ARKeyboard needs camera permission to function properly. Please grant the permission to use all features.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showPermissionRationale = false
+                            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    ) {
+                        Text("OK")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showPermissionRationale = false }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 
     override fun onDestroy() {
@@ -114,8 +186,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
+
 @Composable
 fun MainScreen(navController: NavController) {
+    val activity = (LocalContext.current as? MainActivity)
+
+    // Show permission dialog if needed
+    activity?.CameraPermissionDialog()
+
     Column(Modifier.fillMaxSize()) {
         TopAppBarContent(navController)
         MainContent()
@@ -138,7 +216,7 @@ fun TopAppBarContent(navController: NavController) {
                         color = MaterialTheme.colors.onPrimary
                     )
                 )
-                Spacer(modifier = Modifier.width(8.dp)) // Adds spacing between text
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "v$versionName",
                     style = MaterialTheme.typography.body2.copy(
@@ -151,7 +229,6 @@ fun TopAppBarContent(navController: NavController) {
                     }
                 )
             }
-
         },
         backgroundColor = MaterialTheme.colors.primary,
         elevation = 8.dp
@@ -177,7 +254,7 @@ fun MainContent() {
             onValueChange = setValue,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colors.surface, shape = RoundedCornerShape(12.dp)), // Use shape for rounded corners
+                .background(MaterialTheme.colors.surface, shape = RoundedCornerShape(12.dp)),
             placeholder = {
                 Text(
                     text = "Type here...",
@@ -187,7 +264,6 @@ fun MainContent() {
             textStyle = TextStyle(fontSize = 16.sp, color = MaterialTheme.colors.onSurface),
             singleLine = true
         )
-
 
         Button(
             onClick = {
@@ -222,13 +298,13 @@ fun MainContent() {
         }
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VersionScreen(navController: NavController) {
-    var selectedLanguage by remember { mutableStateOf("en") } // Default to English
+    var selectedLanguage by remember { mutableStateOf("en") }
     val context = LocalContext.current
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
-    // Load the correct version history based on selected language
     val versionHistory = if (selectedLanguage == "en") {
         context.resources.getStringArray(R.array.version_history_en)
     } else {
@@ -241,15 +317,12 @@ fun VersionScreen(navController: NavController) {
         topBar = {
             androidx.compose.material3.TopAppBar(
                 title = { androidx.compose.material3.Text("Version History", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-
                 navigationIcon = {
                     IconButton(onClick = { backDispatcher?.onBackPressed() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                }
-                ,
+                },
                 actions = {
-                    // USA Flag Button
                     IconButton(onClick = { selectedLanguage = "en" }) {
                         Image(
                             painter = painterResource(id = R.drawable.usaflag),
@@ -257,7 +330,6 @@ fun VersionScreen(navController: NavController) {
                             modifier = Modifier.size(32.dp)
                         )
                     }
-                    // Japan Flag Button
                     IconButton(onClick = { selectedLanguage = "jp" }) {
                         Image(
                             painter = painterResource(id = R.drawable.japanflag),
@@ -270,7 +342,6 @@ fun VersionScreen(navController: NavController) {
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
-            // Background Image with low opacity
             Image(
                 painter = appIcon,
                 contentDescription = "App Icon Background",
@@ -281,7 +352,6 @@ fun VersionScreen(navController: NavController) {
                 alpha = 0.7f
             )
 
-            // Foreground content
             LazyColumn(
                 contentPadding = padding,
                 modifier = Modifier.padding(16.dp)
@@ -309,4 +379,3 @@ fun VersionScreen(navController: NavController) {
         }
     }
 }
-
