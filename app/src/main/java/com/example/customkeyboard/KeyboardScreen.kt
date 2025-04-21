@@ -55,22 +55,22 @@ fun KeyboardScreen() {
     val navigateToScanner = remember { mutableStateOf(false) } // Flag for navigation
 
 
-    LaunchedEffect(navigateToScanner.value) {
-        if (navigateToScanner.value) {
-            val intent = Intent(context, ScannerActivity::class.java)
-            if (context !is Activity) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            if (context is Activity) {
-                context.overridePendingTransition(
-                    R.anim.animate_fade_enter,
-                    R.anim.animate_fade_exit
-                ) // Apply transition animation
-            }
-            navigateToScanner.value = false // Reset the flag
-        }
-    }
+//    LaunchedEffect(navigateToScanner.value) {
+//        if (navigateToScanner.value) {
+//            val intent = Intent(context, ScannerActivity::class.java)
+//            if (context !is Activity) {
+//                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//            }
+//            context.startActivity(intent)
+//            if (context is Activity) {
+//                context.overridePendingTransition(
+//                    R.anim.animate_fade_enter,
+//                    R.anim.animate_fade_exit
+//                ) // Apply transition animation
+//            }
+//            navigateToScanner.value = false // Reset the flag
+//        }
+//    }
     Column(
         modifier = Modifier
             .background(Color(0xFFA2ABBA))

@@ -1,22 +1,14 @@
 package com.example.customkeyboard
 
-import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.ImageFormat
-import android.net.Uri
 import android.os.Build
-import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.provider.Settings
-import android.util.Log
 import android.view.inputmethod.InputMethodManager
-import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
@@ -59,11 +51,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.zxing.BarcodeFormat
+import androidx.core.net.toUri
 import com.google.zxing.BinaryBitmap
-import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.NotFoundException
 import com.google.zxing.PlanarYUVLuminanceSource
@@ -71,62 +61,9 @@ import com.google.zxing.common.HybridBinarizer
 import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
-import androidx.core.net.toUri
 
-class ScannerActivity : ComponentActivity() {
-    private val cameraExecutor = Executors.newSingleThreadExecutor()
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // Check if camera permission is granted
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            // Permission granted, show the ScannerScreen
-            setContent {
-                ScannerScreen()
-            }
-        } else {
-            // Request the permission
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA_PERMISSION)
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        when (requestCode) {
-            REQUEST_CAMERA_PERMISSION -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // Permission granted, show the ScannerScreen
-                    setContent {
-                        ScannerScreen()
-                    }
-                } else {
-                    // Check if the user selected "Don't ask again"
-                    if (!ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)) {
-                        // User denied permission permanently, direct them to app settings
-                        Toast.makeText(this, "Camera permission is required. Please enable it in app settings.", Toast.LENGTH_LONG).show()
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.fromParts("package", packageName, null)
-                        }
-                        startActivity(intent)
-                        finish() // Optional: Close the current activity
-                    } else {
-                        // Permission denied but not permanently, show a message
-                        Toast.makeText(this, "Please enable camera permission in the app settings.", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        }
-    }
-    override fun onDestroy(){
-        super.onDestroy()
-        cameraExecutor.shutdown()
-    }
-    companion object {
-        private const val REQUEST_CAMERA_PERMISSION = 1
-    }
-
-    @Composable
-    fun ScannerScreen() {
+@Composable
+fun ScannerScreen() {
         var isCameraActive by remember { mutableStateOf(true) }
         var cameraWidth by remember { mutableStateOf(330.dp) }
         var cameraHeight by remember { mutableStateOf(80.dp) }
@@ -148,7 +85,6 @@ class ScannerActivity : ComponentActivity() {
                                 putExtra("SCANNED_CODE", barcodeValue)
                             }
                             context.sendBroadcast(intent)
-                            finish()
                             // Request IME focus after finishing
                             (context as? Activity)?.window?.decorView?.let { view ->
                                 view.post {
@@ -516,4 +452,3 @@ class ScannerActivity : ComponentActivity() {
     fun ScannerScreenPreview() {
         ScannerScreen()
     }
-}

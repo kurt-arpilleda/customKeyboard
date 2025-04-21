@@ -134,6 +134,6 @@ class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStat
 class ComposeKeyboardView(context: Context) : AbstractComposeView(context) {
     @Composable
     override fun Content() {
-        KeyboardScreen()
+        ScannerScreen()
     }
 }
