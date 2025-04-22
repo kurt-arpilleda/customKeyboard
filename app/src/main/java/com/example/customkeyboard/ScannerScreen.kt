@@ -78,20 +78,6 @@ fun ScannerScreen(onClose: () -> Unit) {
     var isQrMode by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Add a close button at the top
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(16.dp)
-        ) {
-            Icon(
-                painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
-                contentDescription = "Close Scanner",
-                tint = Color.White
-            )
-        }
-
         if (isCameraActive) {
             CameraScanner(
                 onBarcodeScanned = { barcodeValue ->
@@ -104,7 +90,7 @@ fun ScannerScreen(onClose: () -> Unit) {
                             putExtra("SCANNED_CODE", barcodeValue)
                         }
                         context.sendBroadcast(intent)
-                        onClose() // Close the scanner after successful scan
+                        onClose()
                     }
                 },
                 cameraWidth = cameraWidth,
@@ -112,86 +98,107 @@ fun ScannerScreen(onClose: () -> Unit) {
                 flashlightOn = flashlightOn
             )
         }
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(26.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .align(Alignment.TopEnd),
+            contentAlignment = Alignment.TopEnd
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                    contentDescription = "Close Scanner",
+                    tint = Color.White
+                )
+            }
+        }
+
+        // Foreground UI
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(26.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(bottom = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(bottom = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Icon(
+                    painter = painterResource(id = R.drawable.qrscanner),
+                    contentDescription = null,
+                    tint = Color.White
+                )
+                Text(
+                    text = "Scan Here",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+
+            Text(
+                text = "Place the code inside the frame.\nEnsure it is centered and not blurry.",
+                color = Color.White,
+                fontSize = 12.sp
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .border(2.dp, Color.White, RoundedCornerShape(8.dp))
+                        .padding(4.dp)
                 ) {
                     Icon(
-                        painter = painterResource(id = R.drawable.qrscanner),
+                        painter = painterResource(id = if (isQrMode) R.drawable.qr_icon else R.drawable.barcode_icon),
                         contentDescription = null,
-                        tint = Color.White
-                    )
-                    Text(
-                        text = "Scan Here",
-                        color = Color.White,
-                        fontSize = 20.sp
+                        tint = Color.White,
+                        modifier = Modifier
+                            .clickable {
+                                isQrMode = !isQrMode
+                                if (isQrMode) {
+                                    cameraWidth = 250.dp
+                                    cameraHeight = 250.dp
+                                } else {
+                                    cameraWidth = 330.dp
+                                    cameraHeight = 80.dp
+                                }
+                            }
+                            .size(40.dp)
                     )
                 }
 
-                Text(
-                    text = "Place the code inside the frame.\nEnsure it is centered and not blurry.",
-                    color = Color.White,
-                    fontSize = 12.sp
-                )
+                Spacer(modifier = Modifier.width(16.dp))
 
-                Spacer(modifier = Modifier.weight(1f))
-
-                Row(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                        .border(2.dp, Color.White, RoundedCornerShape(8.dp))
+                        .padding(4.dp)
                 ) {
-                    Box(
+                    Icon(
+                        painter = painterResource(id = R.drawable.flash_icon),
+                        contentDescription = null,
+                        tint = if (flashlightOn) Color.Yellow else Color.White,
                         modifier = Modifier
-                            .border(2.dp, Color.White, RoundedCornerShape(8.dp))
-                            .padding(4.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = if (isQrMode) R.drawable.qr_icon else R.drawable.barcode_icon),
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier
-                                .clickable {
-                                    isQrMode = !isQrMode
-                                    if (isQrMode) {
-                                        cameraWidth = 250.dp
-                                        cameraHeight = 250.dp
-                                    } else {
-                                        cameraWidth = 330.dp
-                                        cameraHeight = 80.dp
-                                    }
-                                }
-                                .size(40.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Box(
-                        modifier = Modifier
-                            .border(2.dp, Color.White, RoundedCornerShape(8.dp))
-                            .padding(4.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.flash_icon),
-                            contentDescription = null,
-                            tint = if (flashlightOn) Color.Yellow else Color.White,
-                            modifier = Modifier
-                                .clickable {
-                                    flashlightOn = !flashlightOn
-                                }
-                                .size(40.dp)
-                        )
-                    }
+                            .clickable {
+                                flashlightOn = !flashlightOn
+                            }
+                            .size(40.dp)
+                    )
                 }
             }
         }
     }
+}
+
 
 @Composable
 fun CameraScanner(
