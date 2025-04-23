@@ -31,6 +31,9 @@ class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStat
     private val handler = Handler(Looper.getMainLooper())
     private var currentScannedCode: String? = null
     private var processingInProgress = false
+    private var lastProcessedCode: String? = null
+    private var lastProcessedTime: Long = 0
+    private val DEBOUNCE_TIME = 2000 // 2 seconds debounce
 
     // BroadcastReceiver to handle scanned codes
     private val scannedCodeReceiver = object : BroadcastReceiver() {
@@ -39,15 +42,32 @@ class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStat
 
             Log.d("IMEService", "Received scanned code: $scannedCode")
 
+            // Prevent duplicates within the debounce period
+            val currentTime = System.currentTimeMillis()
+            if (scannedCode == lastProcessedCode &&
+                currentTime - lastProcessedTime < DEBOUNCE_TIME) {
+                Log.d("IMEService", "Ignoring duplicate scan: $scannedCode")
+                return
+            }
+
             // Cancel any pending processing
             handler.removeCallbacksAndMessages(null)
 
-            currentScannedCode = scannedCode
-            processingInProgress = true
+            // Only process if we're not already processing something
+            if (!processingInProgress) {
+                currentScannedCode = scannedCode
+                processingInProgress = true
 
-            // Ensure we have focus before processing the code
-            ensureInputFocus {
-                processCurrentCode()
+                // Update tracking
+                lastProcessedCode = scannedCode
+                lastProcessedTime = currentTime
+
+                // Ensure we have focus before processing the code
+                ensureInputFocus {
+                    processCurrentCode()
+                }
+            } else {
+                Log.d("IMEService", "Ignoring scan while processing in progress")
             }
         }
     }
@@ -121,6 +141,7 @@ class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStat
                 handler.postDelayed({
                     processCurrentCode()
                 }, 100)
+                return // Exit early without resetting state
             }
         }
 
@@ -129,7 +150,6 @@ class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStat
         processingInProgress = false
     }
 }
-
 // Custom Compose view for the keyboard
 class ComposeKeyboardView(context: Context) : AbstractComposeView(context) {
     @Composable
