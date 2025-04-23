@@ -1,13 +1,11 @@
 package com.example.customkeyboard
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.ImageFormat
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
@@ -31,7 +29,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.IconButton
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,7 +44,6 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,13 +55,376 @@ import com.google.zxing.MultiFormatReader
 import com.google.zxing.NotFoundException
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
-import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
 class IMEServiceLifecycleOwner(private val imeService: LifecycleInputMethodService) : androidx.lifecycle.LifecycleOwner {
     override val lifecycle: androidx.lifecycle.Lifecycle
         get() = imeService.lifecycle
+}
+
+class BarcodeAnalyzer(
+    private val onBarcodeScanned: (String) -> Unit,
+    private val debounceInterval: Long = 100,
+    private val threshold: Int = 3, // Number of consecutive matches needed
+    private val frameWidth: Int,
+    private val frameHeight: Int
+) : ImageAnalysis.Analyzer {
+
+    private val reader = MultiFormatReader()
+    private var lastScanTime: Long = 0
+    private val lock = Any()
+
+    private val scanQueue: MutableList<String> = mutableListOf()
+
+    @OptIn(ExperimentalGetImage::class)
+    override fun analyze(imageProxy: ImageProxy) {
+        try {
+            imageProxy.image?.let {
+                if ((it.format == ImageFormat.YUV_420_888
+                            || it.format == ImageFormat.YUV_422_888
+                            || it.format == ImageFormat.YUV_444_888)
+                    && it.planes.size == 3) {
+
+                    val luminanceData = getLuminancePlaneData(imageProxy)
+                    val rotatedImage = RotatedImage(luminanceData, imageProxy.width, imageProxy.height)
+                    rotateImageArray(rotatedImage, imageProxy.imageInfo.rotationDegrees)
+
+                    // Ensure the frame fits within the image bounds
+                    val frameWidthAdjusted = minOf(frameWidth, rotatedImage.width)
+                    val frameHeightAdjusted = minOf(frameHeight, rotatedImage.height)
+
+                    // Calculate the center of the image to position the frame
+                    val centerX = maxOf(0, (rotatedImage.width - frameWidthAdjusted) / 2)
+                    val centerY = maxOf(0, (rotatedImage.height - frameHeightAdjusted) / 2)
+
+                    // Ensure we don't exceed the image boundaries
+                    val rightEdge = centerX + frameWidthAdjusted
+                    val bottomEdge = centerY + frameHeightAdjusted
+
+                    if (rightEdge > rotatedImage.width || bottomEdge > rotatedImage.height) {
+                        // Skip this frame if dimensions don't fit
+                        imageProxy.close()
+                        return
+                    }
+
+                    // Only scan within the frame area
+                    val source = PlanarYUVLuminanceSource(
+                        rotatedImage.byteArray,
+                        rotatedImage.width,
+                        rotatedImage.height,
+                        centerX,
+                        centerY,
+                        frameWidthAdjusted,
+                        frameHeightAdjusted,
+                        false
+                    )
+
+                    val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+
+                    try {
+                        val result = reader.decodeWithState(binaryBitmap)
+                        val currentTime = System.currentTimeMillis()
+
+                        synchronized(lock) {
+                            if (currentTime - lastScanTime >= debounceInterval) {
+                                // Add result to queue
+                                scanQueue.add(result.text)
+
+                                if (scanQueue.size > threshold) {
+                                    scanQueue.removeAt(0)
+                                }
+
+                                // If we have reached the threshold and all entries are equal, trigger scan
+                                if (scanQueue.size == threshold && scanQueue.all { it == scanQueue[0] }) {
+                                    onBarcodeScanned(result.text)
+                                    scanQueue.clear()
+                                }
+
+                                lastScanTime = currentTime
+                            }
+                        }
+                    } catch (e: NotFoundException) {
+                        // No barcode found
+                    } finally {
+                        reader.reset()
+                    }
+                }
+            }
+        } catch (e: IllegalStateException) {
+            e.printStackTrace()
+        } finally {
+            imageProxy.close()
+        }
+    }
+
+    private fun getLuminancePlaneData(image: ImageProxy): ByteArray {
+        val plane = image.planes[0]
+        val buf: ByteBuffer = plane.buffer
+        val data = ByteArray(buf.remaining())
+        buf.get(data)
+        buf.rewind()
+        val width = image.width
+        val height = image.height
+        val rowStride = plane.rowStride
+        val pixelStride = plane.pixelStride
+
+        val cleanData = ByteArray(width * height)
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                cleanData[y * width + x] = data[y * rowStride + x * pixelStride]
+            }
+        }
+        return cleanData
+    }
+
+    private fun rotateImageArray(imageToRotate: RotatedImage, rotationDegrees: Int) {
+        if (rotationDegrees == 0) return
+        if (rotationDegrees % 90 != 0) return
+
+        val width = imageToRotate.width
+        val height = imageToRotate.height
+
+        val rotatedData = ByteArray(imageToRotate.byteArray.size)
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                when (rotationDegrees) {
+                    90 -> rotatedData[x * height + height - y - 1] =
+                        imageToRotate.byteArray[x + y * width]
+                    180 -> rotatedData[width * (height - y - 1) + width - x - 1] =
+                        imageToRotate.byteArray[x + y * width]
+                    270 -> rotatedData[y + x * height] =
+                        imageToRotate.byteArray[y * width + width - x - 1]
+                }
+            }
+        }
+
+        imageToRotate.byteArray = rotatedData
+
+        if (rotationDegrees != 180) {
+            imageToRotate.height = width
+            imageToRotate.width = height
+        }
+    }
+}
+
+private data class RotatedImage(var byteArray: ByteArray, var width: Int, var height: Int)
+
+@Composable
+fun CameraScanner(
+    onBarcodeScanned: (String) -> Unit,
+    cameraWidth: Dp,
+    cameraHeight: Dp,
+    flashlightOn: Boolean
+) {
+    val context = LocalContext.current
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    var showCenterLine by remember { mutableStateOf(false) }
+    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+
+    // Get the lifecycle owner based on context type
+    val lifecycleOwner = when (context) {
+        is ComponentActivity -> context
+        is LifecycleInputMethodService -> IMEServiceLifecycleOwner(context)
+        else -> null
+    }
+
+    // Convert Dp to pixels for frame dimensions
+    val displayMetrics = context.resources.displayMetrics
+    val frameWidthPx = (cameraWidth.value * displayMetrics.density).toInt()
+    val frameHeightPx = (cameraHeight.value * displayMetrics.density).toInt()
+
+    LaunchedEffect(flashlightOn) {
+        if (lifecycleOwner != null) {
+            val cameraProvider = cameraProviderFuture.get()
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            try {
+                val camera = cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector
+                )
+                camera.cameraControl.enableTorch(flashlightOn)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Reset center line when frame dimensions change
+    LaunchedEffect(cameraWidth, cameraHeight) {
+        showCenterLine = false
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    val previewView = androidx.camera.view.PreviewView(ctx)
+
+                    cameraProviderFuture.addListener({
+                        val cameraProvider = cameraProviderFuture.get()
+                        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                        val preview = androidx.camera.core.Preview.Builder().build().also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
+                        }
+
+                        val imageAnalyzer = ImageAnalysis.Builder()
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .build()
+                            .also {
+                                it.setAnalyzer(
+                                    cameraExecutor,
+                                    BarcodeAnalyzer(
+                                        onBarcodeScanned = { barcode ->
+                                            onBarcodeScanned(barcode)
+                                            showCenterLine = true
+                                            val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+                                            } else {
+                                                @Suppress("DEPRECATION")
+                                                vibrator.vibrate(100)
+                                            }
+                                        },
+                                        frameWidth = frameWidthPx,
+                                        frameHeight = frameHeightPx
+                                    )
+                                )
+                            }
+
+                        try {
+                            // Clear all previous bindings
+                            cameraProvider.unbindAll()
+
+                            // Check if the lifecycleOwner is available before binding
+                            if (lifecycleOwner != null) {
+                                val camera = cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    imageAnalyzer
+                                )
+
+                                // Auto-focus on the center of the preview
+                                previewView.post {
+                                    val meterFactory = previewView.meteringPointFactory
+                                    val centerX = previewView.width / 2f
+                                    val centerY = previewView.height / 2f
+                                    val centerMeteringPoint = meterFactory.createPoint(centerX, centerY)
+
+                                    val action = FocusMeteringAction.Builder(centerMeteringPoint).build()
+                                    camera.cameraControl.startFocusAndMetering(action)
+                                }
+
+                                // Set torch state
+                                camera.cameraControl.enableTorch(flashlightOn)
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+
+                    }, ContextCompat.getMainExecutor(ctx))
+
+                    previewView
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            Canvas(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val dimColor = Color.Black.copy(alpha = 0.8f)
+                drawRect(color = dimColor)
+
+                val frameWidthPx = cameraWidth.toPx()
+                val frameHeightPx = cameraHeight.toPx()
+                val centerX = (size.width - frameWidthPx) / 2
+                val centerY = (size.height - frameHeightPx) / 2
+
+                // Draw the scanning frame (transparent area)
+                drawRect(
+                    color = Color.Transparent,
+                    topLeft = Offset(centerX, centerY),
+                    size = androidx.compose.ui.geometry.Size(frameWidthPx, frameHeightPx),
+                    blendMode = BlendMode.Clear
+                )
+
+                // Draw frame border
+                val borderColor = Color.White
+                val borderWidth = 4f
+                val cornerLength = 40f
+
+                // Top-left corner
+                drawLine(
+                    color = borderColor,
+                    start = Offset(centerX, centerY),
+                    end = Offset(centerX + cornerLength, centerY),
+                    strokeWidth = borderWidth
+                )
+                drawLine(
+                    color = borderColor,
+                    start = Offset(centerX, centerY),
+                    end = Offset(centerX, centerY + cornerLength),
+                    strokeWidth = borderWidth
+                )
+
+                // Top-right corner
+                drawLine(
+                    color = borderColor,
+                    start = Offset(centerX + frameWidthPx, centerY),
+                    end = Offset(centerX + frameWidthPx - cornerLength, centerY),
+                    strokeWidth = borderWidth
+                )
+                drawLine(
+                    color = borderColor,
+                    start = Offset(centerX + frameWidthPx, centerY),
+                    end = Offset(centerX + frameWidthPx, centerY + cornerLength),
+                    strokeWidth = borderWidth
+                )
+
+                // Bottom-left corner
+                drawLine(
+                    color = borderColor,
+                    start = Offset(centerX, centerY + frameHeightPx),
+                    end = Offset(centerX + cornerLength, centerY + frameHeightPx),
+                    strokeWidth = borderWidth
+                )
+                drawLine(
+                    color = borderColor,
+                    start = Offset(centerX, centerY + frameHeightPx),
+                    end = Offset(centerX, centerY + frameHeightPx - cornerLength),
+                    strokeWidth = borderWidth
+                )
+
+                // Bottom-right corner
+                drawLine(
+                    color = borderColor,
+                    start = Offset(centerX + frameWidthPx, centerY + frameHeightPx),
+                    end = Offset(centerX + frameWidthPx - cornerLength, centerY + frameHeightPx),
+                    strokeWidth = borderWidth
+                )
+                drawLine(
+                    color = borderColor,
+                    start = Offset(centerX + frameWidthPx, centerY + frameHeightPx),
+                    end = Offset(centerX + frameWidthPx, centerY + frameHeightPx - cornerLength),
+                    strokeWidth = borderWidth
+                )
+
+                if (showCenterLine) {
+                    val centerLineY = centerY + frameHeightPx / 2
+                    drawLine(
+                        color = Color.Green,
+                        start = Offset(centerX, centerLineY),
+                        end = Offset(centerX + frameWidthPx, centerLineY),
+                        strokeWidth = 6f
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -105,11 +464,15 @@ fun ScannerScreen(onClose: () -> Unit) {
                 .align(Alignment.TopEnd),
             contentAlignment = Alignment.TopEnd
         ) {
-            IconButton(onClick = onClose) {
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.size(48.dp)
+            ) {
                 Icon(
                     painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
                     contentDescription = "Close Scanner",
-                    tint = Color.White
+                    tint = Color.White,
+                    modifier = Modifier.size(40.dp)
                 )
             }
         }
@@ -130,7 +493,7 @@ fun ScannerScreen(onClose: () -> Unit) {
                     tint = Color.White
                 )
                 Text(
-                    text = "Scan Here",
+                    text = if (isQrMode) "Scan QR Code" else "Scan Barcode",
                     color = Color.White,
                     fontSize = 20.sp,
                     modifier = Modifier.padding(start = 8.dp)
@@ -138,7 +501,10 @@ fun ScannerScreen(onClose: () -> Unit) {
             }
 
             Text(
-                text = "Place the code inside the frame.\nEnsure it is centered and not blurry.",
+                text = if (isQrMode)
+                    "Place the QR code inside the square frame.\nEnsure it is centered and not blurry."
+                else
+                    "Place the barcode inside the rectangular frame.\nEnsure it is centered and not blurry.",
                 color = Color.White,
                 fontSize = 12.sp
             )
@@ -159,7 +525,7 @@ fun ScannerScreen(onClose: () -> Unit) {
                 ) {
                     Icon(
                         painter = painterResource(id = if (isQrMode) R.drawable.qr_icon else R.drawable.barcode_icon),
-                        contentDescription = null,
+                        contentDescription = if (isQrMode) "Switch to Barcode Mode" else "Switch to QR Code Mode",
                         tint = Color.White,
                         modifier = Modifier
                             .clickable {
@@ -185,7 +551,7 @@ fun ScannerScreen(onClose: () -> Unit) {
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.flash_icon),
-                        contentDescription = null,
+                        contentDescription = if (flashlightOn) "Turn Flashlight Off" else "Turn Flashlight On",
                         tint = if (flashlightOn) Color.Yellow else Color.White,
                         modifier = Modifier
                             .clickable {
@@ -198,288 +564,3 @@ fun ScannerScreen(onClose: () -> Unit) {
         }
     }
 }
-
-
-@Composable
-fun CameraScanner(
-    onBarcodeScanned: (String) -> Unit,
-    cameraWidth: Dp,
-    cameraHeight: Dp,
-    flashlightOn: Boolean
-) {
-    val context = LocalContext.current
-    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-    var showCenterLine by remember { mutableStateOf(false) }
-    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-
-    // Get the lifecycle owner based on context type
-    val lifecycleOwner = when (context) {
-        is ComponentActivity -> context
-        is LifecycleInputMethodService -> IMEServiceLifecycleOwner(context)
-        else -> null
-    }
-
-    LaunchedEffect(flashlightOn) {
-        if (lifecycleOwner != null) {
-            val cameraProvider = cameraProviderFuture.get()
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            try {
-                val camera = cameraProvider.bindToLifecycle(
-                    lifecycleOwner,
-                    cameraSelector
-                )
-                camera.cameraControl.enableTorch(flashlightOn)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            AndroidView(
-                factory = { ctx ->
-                    val previewView = androidx.camera.view.PreviewView(ctx)
-
-                    cameraProviderFuture.addListener({
-                        val cameraProvider = cameraProviderFuture.get()
-                        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                        val preview = androidx.camera.core.Preview.Builder().build().also {
-                            it.setSurfaceProvider(previewView.surfaceProvider)
-                        }
-
-                        val imageAnalyzer = ImageAnalysis.Builder()
-                            .setTargetResolution(
-                                android.util.Size(
-                                    cameraWidth.value.toInt(),
-                                    cameraHeight.value.toInt()
-                                )
-                            )
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                            .build()
-                            .also {
-                                it.setAnalyzer(
-                                    cameraExecutor,
-                                    BarcodeAnalyzer(
-                                        onBarcodeScanned = { barcode ->
-                                            onBarcodeScanned(barcode)
-                                            showCenterLine = true
-                                            val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
-                                            } else {
-                                                @Suppress("DEPRECATION")
-                                                vibrator.vibrate(100)
-                                            }
-                                        }
-                                    )
-                                )
-                            }
-
-                        try {
-                            // Clear all previous bindings
-                            cameraProvider.unbindAll()
-
-                            // Check if the lifecycleOwner is available before binding
-                            if (lifecycleOwner != null) {
-                                val camera = cameraProvider.bindToLifecycle(
-                                    lifecycleOwner,
-                                    cameraSelector,
-                                    preview,
-                                    imageAnalyzer
-                                )
-
-                                val meterFactory = previewView.meteringPointFactory
-                                val centerX = previewView.width / 2f
-                                val centerY = previewView.height / 2f
-                                val centerMeteringPoint = meterFactory.createPoint(centerX, centerY)
-
-                                val action = FocusMeteringAction.Builder(centerMeteringPoint).build()
-                                camera.cameraControl.startFocusAndMetering(action)
-
-                                // Set torch state
-                                camera.cameraControl.enableTorch(flashlightOn)
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-
-                    }, ContextCompat.getMainExecutor(ctx))
-
-                    previewView
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            Canvas(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                val dimColor = Color.Black.copy(alpha = 0.8f)
-                drawRect(color = dimColor)
-
-                val frameWidth = cameraWidth.toPx()
-                val frameHeight = cameraHeight.toPx()
-                val centerX = (size.width - frameWidth) / 2
-                val centerY = (size.height - frameHeight) / 2
-
-                drawRect(
-                    color = Color.Transparent,
-                    topLeft = Offset(centerX, centerY),
-                    size = androidx.compose.ui.geometry.Size(frameWidth, frameHeight),
-                    blendMode = BlendMode.Clear
-                )
-
-                if (showCenterLine) {
-                    val centerLineY = (size.height / 2)
-                    drawLine(
-                        color = Color.Green,
-                        start = Offset(centerX, centerLineY),
-                        end = Offset(centerX + frameWidth, centerLineY),
-                        strokeWidth = 6f
-                    )
-                }
-            }
-        }
-    }
-}
-
-    class BarcodeAnalyzer(
-        private val onBarcodeScanned: (String) -> Unit,
-        private val debounceInterval: Long = 100,
-        private val threshold: Int = 3 // Number of consecutive matches needed
-    ) : ImageAnalysis.Analyzer {
-
-        private val reader = MultiFormatReader()
-        private var lastScanTime: Long = 0
-        private val lock = Any()
-
-        private val scanQueue: MutableList<String> = mutableListOf()
-
-        @OptIn(ExperimentalGetImage::class)
-        override fun analyze(imageProxy: ImageProxy) {
-            try {
-                imageProxy.image?.let {
-                    if ((it.format == ImageFormat.YUV_420_888
-                                || it.format == ImageFormat.YUV_422_888
-                                || it.format == ImageFormat.YUV_444_888)
-                        && it.planes.size == 3) {
-
-                        val luminanceData = getLuminancePlaneData(imageProxy)
-                        val rotatedImage = RotatedImage(luminanceData, imageProxy.width, imageProxy.height)
-                        rotateImageArray(rotatedImage, imageProxy.imageInfo.rotationDegrees)
-
-                        val source = PlanarYUVLuminanceSource(
-                            rotatedImage.byteArray,
-                            rotatedImage.width,
-                            rotatedImage.height,
-                            0,
-                            0,
-                            rotatedImage.width,
-                            rotatedImage.height,
-                            false
-                        )
-
-                        val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
-
-                        try {
-                            val result = reader.decodeWithState(binaryBitmap)
-                            val currentTime = System.currentTimeMillis()
-
-                            synchronized(lock) {
-                                if (currentTime - lastScanTime >= debounceInterval) {
-                                    // Add result to queue
-                                    scanQueue.add(result.text)
-//                                    Log.d("BarcodeAnalyzer", "Added result: ${result.text}")
-//                                    Log.d("BarcodeAnalyzer", "Current queue: $scanQueue")
-
-                                    if (scanQueue.size > threshold) {
-                                        scanQueue.removeAt(0)
-//                                        Log.d("BarcodeAnalyzer", "Queue exceeded threshold, removed oldest entry. New queue: $scanQueue")
-                                    }
-
-                                    // If we have reached the threshold and all entries are equal, trigger scan
-                                    if (scanQueue.size == threshold && scanQueue.all { it == scanQueue[0] }) {
-//                                        Log.d("BarcodeAnalyzer", "Threshold met with consistent barcode: ${result.text}")
-                                        onBarcodeScanned(result.text)
-                                        scanQueue.clear()
-//                                        Log.d("BarcodeAnalyzer", "Queue cleared after triggering scan.")
-                                    }
-
-                                    lastScanTime = currentTime
-                                }
-                            }
-                        } catch (e: NotFoundException) {
-                            // No barcode found
-                        } finally {
-                            reader.reset()
-                        }
-                    }
-                }
-            } catch (e: IllegalStateException) {
-                e.printStackTrace()
-            } finally {
-                imageProxy.close()
-            }
-        }
-
-        private fun getLuminancePlaneData(image: ImageProxy): ByteArray {
-            val plane = image.planes[0]
-            val buf: ByteBuffer = plane.buffer
-            val data = ByteArray(buf.remaining())
-            buf.get(data)
-            buf.rewind()
-            val width = image.width
-            val height = image.height
-            val rowStride = plane.rowStride
-            val pixelStride = plane.pixelStride
-
-            val cleanData = ByteArray(width * height)
-            for (y in 0 until height) {
-                for (x in 0 until width) {
-                    cleanData[y * width + x] = data[y * rowStride + x * pixelStride]
-                }
-            }
-            return cleanData
-        }
-
-        private fun rotateImageArray(imageToRotate: RotatedImage, rotationDegrees: Int) {
-            if (rotationDegrees == 0) return
-            if (rotationDegrees % 90 != 0) return
-
-            val width = imageToRotate.width
-            val height = imageToRotate.height
-
-            val rotatedData = ByteArray(imageToRotate.byteArray.size)
-            for (y in 0 until height) {
-                for (x in 0 until width) {
-                    when (rotationDegrees) {
-                        90 -> rotatedData[x * height + height - y - 1] =
-                            imageToRotate.byteArray[x + y * width]
-                        180 -> rotatedData[width * (height - y - 1) + width - x - 1] =
-                            imageToRotate.byteArray[x + y * width]
-                        270 -> rotatedData[y + x * height] =
-                            imageToRotate.byteArray[y * width + width - x - 1]
-                    }
-                }
-            }
-
-            imageToRotate.byteArray = rotatedData
-
-            if (rotationDegrees != 180) {
-                imageToRotate.height = width
-                imageToRotate.width = height
-            }
-        }
-    }
-
-    private data class RotatedImage(var byteArray: ByteArray, var width: Int, var height: Int)
-
-//    @Preview(showBackground = true)
-//    @Composable
-//    fun ScannerScreenPreview() {
-//        ScannerScreen()
-//    }
-

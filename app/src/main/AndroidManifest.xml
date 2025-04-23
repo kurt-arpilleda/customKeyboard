@@ -47,12 +47,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ScannerActivity"
-            android:label="QR Scanner"
-            android:noHistory="true"
-            tools:replace="screenOrientation"
-            android:screenOrientation="sensorPortrait"
-            android:exported="true" />
         <service
             android:name=".IMEService"
             android:label="ARKeyboard"
