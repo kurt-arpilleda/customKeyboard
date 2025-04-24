@@ -90,25 +90,35 @@ fun QwertyKeyboard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 2.dp, vertical = 1.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
                     onClick = {
-                        onSwitchKeyboard()
+                        val imm = context.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showInputMethodPicker()
                     }
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.changekeyboard),
-                        contentDescription = "Keyboard Icon",
+                        contentDescription = "Keyboard Picker Icon",
                         modifier = Modifier.size(24.dp)
                     )
                 }
 
                 IconButton(
-                    onClick = {
-                        onOpenScanner()
-                    }
-                ){
+                    onClick = { onSwitchKeyboard() }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.switchright),
+                        contentDescription = "Switch Keyboard Right",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = { onOpenScanner() }
+                ) {
                     Icon(
                         painter = painterResource(id = R.drawable.barcodescan),
                         contentDescription = "QR Code Scanner Icon",
@@ -116,6 +126,7 @@ fun QwertyKeyboard(
                     )
                 }
             }
+
 
             // Display the appropriate keyboard layout based on current mode
             val currentMatrix = when (currentKeyboardMode) {

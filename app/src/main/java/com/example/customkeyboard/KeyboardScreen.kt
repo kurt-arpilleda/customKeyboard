@@ -71,24 +71,34 @@ fun KeyboardScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
                     onClick = {
-                        onSwitchKeyboard()
+                        val imm = context.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showInputMethodPicker()
                     }
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.changekeyboard),
-                        contentDescription = "Keyboard Icon",
+                        contentDescription = "Keyboard Picker Icon",
                         modifier = Modifier.size(25.dp)
                     )
                 }
 
                 IconButton(
-                    onClick = {
-                        onOpenScanner()
-                    }
+                    onClick = { onSwitchKeyboard() }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.switchleft),
+                        contentDescription = "Switch Keyboard Left",
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = { onOpenScanner() }
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.barcodescan),
