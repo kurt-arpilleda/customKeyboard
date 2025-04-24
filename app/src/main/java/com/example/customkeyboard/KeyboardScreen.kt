@@ -43,7 +43,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun KeyboardScreen() {
+fun KeyboardScreen(
+    onSwitchKeyboard: () -> Unit,
+    onOpenScanner: () -> Unit
+) {
     val alphabeticKeysMatrix = arrayOf(
         arrayOf("DEL", "", "BS", "7", "8", "9"),
         arrayOf("B", "H", "M", "4", "5", "6"),
@@ -72,8 +75,7 @@ fun KeyboardScreen() {
             ) {
                 IconButton(
                     onClick = {
-                        val imm = context.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.showInputMethodPicker()
+                        onSwitchKeyboard()
                     }
                 ) {
                     Icon(
@@ -85,7 +87,7 @@ fun KeyboardScreen() {
 
                 IconButton(
                     onClick = {
-                        showScannerScreen.value = true // Show ScannerScreen instead of launching activity
+                        onOpenScanner()
                     }
                 ) {
                     Icon(

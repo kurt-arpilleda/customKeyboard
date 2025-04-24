@@ -10,6 +10,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.Lifecycle
@@ -22,6 +23,11 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.AbstractComposeView
 
 class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStateRegistryOwner {
@@ -72,6 +78,9 @@ class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStat
         }
     }
 
+
+    private var keyboardView: ComposeKeyboardView? = null
+
     override fun onCreateInputView(): View {
         val view = ComposeKeyboardView(this)
         window?.window?.decorView?.let { decorView ->
@@ -79,7 +88,15 @@ class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStat
             decorView.setViewTreeViewModelStoreOwner(this)
             decorView.setViewTreeSavedStateRegistryOwner(this)
         }
+        keyboardView = view
         return view
+    }
+
+    // This will be called when keyboard is shown again
+    override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        // Restore the keyboard state when input view is started
+        keyboardView?.restoreKeyboardState()
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -150,10 +167,72 @@ class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStat
         processingInProgress = false
     }
 }
-// Custom Compose view for the keyboard
+object KeyboardStateManager {
+    private const val PREFS_NAME = "keyboard_prefs"
+    private const val KEY_LAST_KEYBOARD = "last_keyboard"
+
+    fun saveLastKeyboardState(context: Context, state: ComposeKeyboardView.KeyboardState) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_LAST_KEYBOARD, state.name).apply()
+    }
+
+    fun getLastKeyboardState(context: Context): ComposeKeyboardView.KeyboardState {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val stateName = prefs.getString(KEY_LAST_KEYBOARD, ComposeKeyboardView.KeyboardState.NUMERIC.name) // Changed default here
+        return ComposeKeyboardView.KeyboardState.valueOf(stateName ?: ComposeKeyboardView.KeyboardState.NUMERIC.name) // And here
+    }
+}
 class ComposeKeyboardView(context: Context) : AbstractComposeView(context) {
+    // Remove the companion object and replace with instance-based storage
+    enum class KeyboardState {
+        QWERTY,
+        NUMERIC
+    }
+
     @Composable
     override fun Content() {
-        QwertyKeyboard()
+        // Get the last state from persistent storage
+        val lastState = remember {
+            KeyboardStateManager.getLastKeyboardState(context)
+        }
+
+        var showQwerty by remember { mutableStateOf(lastState == KeyboardState.QWERTY) }
+        var showScannerScreen by remember { mutableStateOf(false) }
+
+        // Save state whenever it changes
+        LaunchedEffect(showQwerty) {
+            val newState = if (showQwerty) KeyboardState.QWERTY else KeyboardState.NUMERIC
+            KeyboardStateManager.saveLastKeyboardState(context, newState)
+        }
+
+        if (showScannerScreen) {
+            ScannerScreen(
+                onClose = {
+                    showScannerScreen = false
+                }
+            )
+        } else if (showQwerty) {
+            QwertyKeyboard(
+                onSwitchKeyboard = {
+                    showQwerty = false
+                },
+                onOpenScanner = {
+                    showScannerScreen = true
+                }
+            )
+        } else {
+            KeyboardScreen(
+                onSwitchKeyboard = {
+                    showQwerty = true
+                },
+                onOpenScanner = {
+                    showScannerScreen = true
+                }
+            )
+        }
+    }
+
+    fun restoreKeyboardState() {
+        invalidate()
     }
 }

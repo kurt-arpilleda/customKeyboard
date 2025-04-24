@@ -41,7 +41,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun QwertyKeyboard() {
+fun QwertyKeyboard(
+    onSwitchKeyboard: () -> Unit,
+    onOpenScanner: () -> Unit  // Add this parameter
+) {
     // Define QWERTY keyboard layout with 3 main rows for letters and bottom row for special keys
     val qwertyKeysMatrix = arrayOf(
         arrayOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
@@ -91,8 +94,7 @@ fun QwertyKeyboard() {
             ) {
                 IconButton(
                     onClick = {
-                        val imm = context.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.showInputMethodPicker()
+                        onSwitchKeyboard()
                     }
                 ) {
                     Icon(
@@ -104,9 +106,9 @@ fun QwertyKeyboard() {
 
                 IconButton(
                     onClick = {
-                        showScannerScreen.value = true
+                        onOpenScanner()
                     }
-                ) {
+                ){
                     Icon(
                         painter = painterResource(id = R.drawable.barcodescan),
                         contentDescription = "QR Code Scanner Icon",
