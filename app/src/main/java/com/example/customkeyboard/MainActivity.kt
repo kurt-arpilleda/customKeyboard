@@ -28,14 +28,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.material.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -83,11 +81,8 @@ class MainActivity : AppCompatActivity() {
     // Camera permission launcher
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (!isGranted) {
-            // Permission denied, show rationale if needed
-            showPermissionRationale = true
-        }
+    ) { _ ->
+        // No dialog needed, silently accept the result
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,62 +109,24 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
+        // Directly request camera permission on startup
+        requestCameraPermission()
     }
 
     override fun onResume() {
         super.onResume()
         // Check camera permission when activity resumes
-        checkCameraPermission()
+        requestCameraPermission()
     }
 
-    private fun checkCameraPermission() {
-        when {
-            ContextCompat.checkSelfPermission(
+    private fun requestCameraPermission() {
+        // If permission is not granted, directly request it
+        if (ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.CAMERA
-            ) == PackageManager.PERMISSION_GRANTED -> {
-                // Permission already granted
-                showPermissionRationale = false
-            }
-            shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) -> {
-                // Show rationale for permission
-                showPermissionRationale = true
-            }
-            else -> {
-                // Request permission
-                requestPermissionLauncher.launch(Manifest.permission.CAMERA)
-            }
-        }
-    }
-
-    // State for showing permission rationale dialog
-    private var showPermissionRationale by mutableStateOf(false)
-
-    @Composable
-    fun CameraPermissionDialog() {
-        if (showPermissionRationale) {
-            AlertDialog(
-                onDismissRequest = { showPermissionRationale = false },
-                title = { Text("Camera Permission Required") },
-                text = { Text("ARKeyboard needs camera permission to function properly. Please grant the permission to use all features.") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showPermissionRationale = false
-                            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    ) {
-                        Text("OK")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { showPermissionRationale = false }
-                    ) {
-                        Text("Cancel")
-                    }
-                }
-            )
+            ) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
@@ -189,11 +146,6 @@ class MainActivity : AppCompatActivity() {
 
 @Composable
 fun MainScreen(navController: NavController) {
-    val activity = (LocalContext.current as? MainActivity)
-
-    // Show permission dialog if needed
-    activity?.CameraPermissionDialog()
-
     Column(Modifier.fillMaxSize()) {
         TopAppBarContent(navController)
         MainContent()
