@@ -70,8 +70,8 @@ fun QwertyKeyboard(
     val context = LocalContext.current
     val currentKeyPressed = remember { mutableStateOf("") }
     val showScannerScreen = remember { mutableStateOf(false) }
-
-    // Track keyboard mode (QWERTY, numbers, symbols)
+    var isCapsLockEnabled by remember { mutableStateOf(false) }
+    var lastShiftTapTime by remember { mutableStateOf(0L) }
     var currentKeyboardMode by remember { mutableStateOf(KeyboardMode.QWERTY) }
     var isShiftEnabled by remember { mutableStateOf(false) }
 
@@ -89,7 +89,7 @@ fun QwertyKeyboard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(
@@ -194,14 +194,67 @@ fun QwertyKeyboard(
                                 row.forEachIndexed { index, key ->
                                     when (key) {
                                         "SHIFT" -> {
-                                            KeyboardKeyQwerty(
-                                                keyboardKey = "⇧",
-                                                modifier = Modifier.weight(1.5f),
-                                                backgroundColor = if (isShiftEnabled) Color(0xFF99E6C8) else Color(0xFFD1D6DB),
-                                                onClick = {
-                                                    isShiftEnabled = !isShiftEnabled
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1.5f)
+                                                    .fillMaxHeight(),
+                                                contentAlignment = Alignment.BottomCenter
+                                            ) {
+                                                val backgroundColor = when {
+                                                    isCapsLockEnabled -> Color(0xFF3399FF) // blue for caps lock
+                                                    isShiftEnabled -> Color(0xFF99E6C8)    // light green for single shift
+                                                    else -> Color(0xFFD1D6DB)
                                                 }
-                                            )
+                                                val interactionSource = remember { MutableInteractionSource() }
+                                                val isPressed = interactionSource.collectIsPressedAsState()
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(2.dp)
+                                                        .border(
+                                                            width = 0.5.dp,
+                                                            color = Color.Black.copy(alpha = 0.1f),
+                                                            shape = RoundedCornerShape(8.dp)
+                                                        )
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .clickable(interactionSource = interactionSource, indication = null) {
+                                                            val currentTime = System.currentTimeMillis()
+                                                            if (currentTime - lastShiftTapTime < 400) {
+                                                                // Double tap → toggle caps lock
+                                                                isCapsLockEnabled = !isCapsLockEnabled
+                                                                isShiftEnabled = isCapsLockEnabled
+                                                            } else {
+                                                                // Single tap logic
+                                                                if (isCapsLockEnabled) {
+                                                                    // If in Caps Lock, disable both
+                                                                    isCapsLockEnabled = false
+                                                                    isShiftEnabled = false
+                                                                } else {
+                                                                    // Normal shift toggle
+                                                                    isShiftEnabled = !isShiftEnabled
+                                                                }
+                                                            }
+                                                            lastShiftTapTime = currentTime
+                                                        }
+                                                        .background(
+                                                            if (isPressed.value) backgroundColor.copy(alpha = 0.7f) else backgroundColor
+                                                        )
+                                                        .padding(
+                                                            start = 8.dp,
+                                                            end = 8.dp,
+                                                            top = 16.dp,
+                                                            bottom = 16.dp
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(id = R.drawable.keyboardshiftlock),
+                                                        contentDescription = "Shift",
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                         "BS" -> {
                                             RemoveKeyQwerty(modifier = Modifier.weight(1.5f))
@@ -241,7 +294,7 @@ fun QwertyKeyboard(
                                         }
                                         else -> {
                                             // For letter keys, apply shift if enabled
-                                            val displayKey = if (currentKeyboardMode == KeyboardMode.QWERTY && isShiftEnabled) {
+                                            val displayKey = if ((currentKeyboardMode == KeyboardMode.QWERTY) && (isShiftEnabled || isCapsLockEnabled)) {
                                                 key.uppercase()
                                             } else {
                                                 key
@@ -257,7 +310,7 @@ fun QwertyKeyboard(
                                                     inputConnection.commitText(displayKey, 1)
 
                                                     // Auto-disable shift after a single letter is typed
-                                                    if (isShiftEnabled && currentKeyboardMode == KeyboardMode.QWERTY) {
+                                                    if (isShiftEnabled && !isCapsLockEnabled && currentKeyboardMode == KeyboardMode.QWERTY) {
                                                         isShiftEnabled = false
                                                     }
                                                 }
@@ -499,3 +552,5 @@ fun FixedHeightBoxQwerty(modifier: Modifier, height: Dp, content: @Composable ()
         }
     }
 }
+
+
