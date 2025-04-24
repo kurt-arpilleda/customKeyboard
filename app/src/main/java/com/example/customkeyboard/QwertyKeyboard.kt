@@ -29,7 +29,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
@@ -54,14 +53,14 @@ fun QwertyKeyboard() {
     val numericKeysMatrix = arrayOf(
         arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
         arrayOf("@", "#", "$", "_", "&", "-", "+", "(", ")"),
-        arrayOf("SYM", "*", "\"", ";", "'", ":", "!", "?", "BS"),
+        arrayOf("=\\<", "*", "\"", ";", "'", ":", "!", "?", "BS"),
         arrayOf("ABC", ",", "SPACE",".", "Enter")
     )
 
     val symbolKeysMatrix = arrayOf(
         arrayOf("~", "\\", "|", "^", "€", "£", "¥", "•", "×", "÷"),
-        arrayOf("{", "}", "[", "]", "<", ">", "=", "/", "%"),
-        arrayOf("123", "€", "°", "©", "®", "¢", "±", "¿", "BS"),
+        arrayOf("{", "}", "[", "]", "<", ">", "¿", "/", "%"),
+        arrayOf("123", "€", "°", "©", "®", "¢", "±", "=", "BS"),
         arrayOf("ABC",",", "SPACE", ".", "Enter")
     )
 
@@ -159,16 +158,6 @@ fun QwertyKeyboard() {
                                                 }
                                             )
                                         }
-                                        "SYM" -> {
-                                            KeyboardKeyQwerty(
-                                                keyboardKey = key,
-                                                modifier = Modifier.weight(1.5f),
-                                                backgroundColor = Color(0xFFD1D6DB),
-                                                onClick = {
-                                                    currentKeyboardMode = KeyboardMode.SYMBOL
-                                                }
-                                            )
-                                        }
                                         "SPACE" -> {
                                             KeyboardKeyQwerty(
                                                 keyboardKey = " ",
@@ -214,6 +203,39 @@ fun QwertyKeyboard() {
                                         }
                                         "BS" -> {
                                             RemoveKeyQwerty(modifier = Modifier.weight(1.5f))
+                                        }
+                                        "=\\<" -> {
+                                            // Special handling for SYM key
+                                            KeyboardKeyQwerty(
+                                                keyboardKey = key,
+                                                modifier = Modifier.weight(1.5f),
+                                                backgroundColor = Color(0xFFD1D6DB),
+                                                onClick = {
+                                                    currentKeyboardMode = KeyboardMode.SYMBOL
+                                                }
+                                            )
+                                        }
+                                        "123" -> {
+                                            // Special handling for 123 key in symbol layout
+                                            KeyboardKeyQwerty(
+                                                keyboardKey = key,
+                                                modifier = Modifier.weight(1.5f),
+                                                backgroundColor = Color(0xFFD1D6DB),
+                                                onClick = {
+                                                    currentKeyboardMode = KeyboardMode.NUMERIC
+                                                }
+                                            )
+                                        }
+                                        "ABC" -> {
+                                            // Special handling for ABC key in non-bottom rows
+                                            KeyboardKeyQwerty(
+                                                keyboardKey = key,
+                                                modifier = Modifier.weight(1.5f),
+                                                backgroundColor = Color(0xFFD1D6DB),
+                                                onClick = {
+                                                    currentKeyboardMode = KeyboardMode.QWERTY
+                                                }
+                                            )
                                         }
                                         else -> {
                                             // For letter keys, apply shift if enabled
