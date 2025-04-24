@@ -7,6 +7,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Environment
 import android.os.Handler
+import android.os.PowerManager
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import retrofit2.Call
@@ -27,6 +28,7 @@ class AppUpdateService(private val context: Context) {
     private val handler = Handler(context.mainLooper)
     private val MAX_RETRIES = 10
     private val INITIAL_RETRY_DELAY_MS = 1000L // 1 second
+    private var wakeLock: PowerManager.WakeLock? = null
 
     fun checkForAppUpdate() {
         val currentVersionCode = getCurrentAppVersionCode()
@@ -47,7 +49,6 @@ class AppUpdateService(private val context: Context) {
             }
 
             override fun onFailure(call: Call<AppUpdateResponse>, t: Throwable) {
-                // Handle network failures here
                 Toast.makeText(context, "Failed to check for updates", Toast.LENGTH_SHORT).show()
             }
         })
@@ -64,9 +65,25 @@ class AppUpdateService(private val context: Context) {
     }
 
     private fun startAutomaticUpdate(fileName: String) {
+        acquireWakeLock()
         showDownloadProgressDialog(fileName)
         val destinationFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
         downloadFileWithRetry(fileName, destinationFile, 0)
+    }
+
+    private fun acquireWakeLock() {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "${context.packageName}:AppUpdateWakeLock"
+        )
+        wakeLock?.acquire(30 * 60 * 1000L /*30 minutes*/ )
+    }
+
+    private fun releaseWakeLock() {
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+        }
     }
 
     private fun showDownloadProgressDialog(fileName: String) {
@@ -81,7 +98,6 @@ class AppUpdateService(private val context: Context) {
     }
 
     private fun downloadFileWithRetry(fileName: String, destinationFile: File, attempt: Int) {
-        // Choose URL based on attempt (alternate between primary and fallback)
         val baseUrl = if (attempt % 2 == 0) RetrofitClient.PRIMARY_URL else RetrofitClient.FALLBACK_URL
         val url = "$baseUrl/V4/Others/Kurt/LatestVersionAPK/ARKeyboard/$fileName"
 
@@ -93,8 +109,8 @@ class AppUpdateService(private val context: Context) {
             try {
                 connection = URL(url).openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
-                connection.connectTimeout = 2000 // 2 seconds timeout
-                connection.readTimeout = 2000 // 2 seconds timeout
+                connection.connectTimeout = 2000
+                connection.readTimeout = 2000
                 connection.connect()
 
                 totalBytes = connection.contentLength.toLong()
@@ -110,7 +126,6 @@ class AppUpdateService(private val context: Context) {
                     outputStream.write(buffer, 0, count)
                     downloadedBytes += count.toLong()
 
-                    // Update progress on the main thread
                     handler.post {
                         progressDialog?.progress = downloadedBytes.toInt()
                         progressDialog?.setMessage("Downloading... ${(downloadedBytes * 100) / totalBytes}%")
@@ -123,6 +138,7 @@ class AppUpdateService(private val context: Context) {
 
                 handler.post {
                     progressDialog?.dismiss()
+                    releaseWakeLock()
                     installAPK(destinationFile)
                 }
 
@@ -130,7 +146,6 @@ class AppUpdateService(private val context: Context) {
                 connection?.disconnect()
 
                 if (attempt < MAX_RETRIES - 1) {
-                    // Calculate exponential backoff delay
                     val delayMs = INITIAL_RETRY_DELAY_MS * (2.0.pow(attempt.toDouble())).toLong()
 
                     handler.post {
@@ -143,11 +158,11 @@ class AppUpdateService(private val context: Context) {
                         Thread.currentThread().interrupt()
                     }
 
-                    // Retry with next attempt
                     downloadFileWithRetry(fileName, destinationFile, attempt + 1)
                 } else {
                     handler.post {
                         progressDialog?.dismiss()
+                        releaseWakeLock()
                         Toast.makeText(context, "Update failed. Please try again later.", Toast.LENGTH_SHORT).show()
                     }
                     e.printStackTrace()
