@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.Button
 import androidx.compose.material.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -66,14 +68,12 @@ class IMEServiceLifecycleOwner(private val imeService: LifecycleInputMethodServi
 
 class BarcodeAnalyzer(
     private val onBarcodeScanned: (String) -> Unit,
-    private val debounceInterval: Long = 100,
-    private val threshold: Int = 3, // Number of consecutive matches needed
+    private val threshold: Int = 3,
     private val frameWidth: Int,
     private val frameHeight: Int
 ) : ImageAnalysis.Analyzer {
 
     private val reader = MultiFormatReader()
-    private var lastScanTime: Long = 0
     private val lock = Any()
 
     private val scanQueue: MutableList<String> = mutableListOf()
@@ -125,24 +125,19 @@ class BarcodeAnalyzer(
 
                     try {
                         val result = reader.decodeWithState(binaryBitmap)
-                        val currentTime = System.currentTimeMillis()
 
                         synchronized(lock) {
-                            if (currentTime - lastScanTime >= debounceInterval) {
-                                // Add result to queue
-                                scanQueue.add(result.text)
+                            // Add result to queue
+                            scanQueue.add(result.text)
 
-                                if (scanQueue.size > threshold) {
-                                    scanQueue.removeAt(0)
-                                }
+                            if (scanQueue.size > threshold) {
+                                scanQueue.removeAt(0)
+                            }
 
-                                // If we have reached the threshold and all entries are equal, trigger scan
-                                if (scanQueue.size == threshold && scanQueue.all { it == scanQueue[0] }) {
-                                    onBarcodeScanned(result.text)
-                                    scanQueue.clear()
-                                }
-
-                                lastScanTime = currentTime
+                            // If we have reached the threshold and all entries are equal, trigger scan
+                            if (scanQueue.size == threshold && scanQueue.all { it == scanQueue[0] }) {
+                                onBarcodeScanned(result.text)
+                                scanQueue.clear()
                             }
                         }
                     } catch (e: NotFoundException) {
@@ -288,8 +283,8 @@ fun CameraScanner(
                                     cameraExecutor,
                                     BarcodeAnalyzer(
                                         onBarcodeScanned = { barcode ->
+                                            showCenterLine = true  // Move this UP so it always happens when barcode is detected
                                             onBarcodeScanned(barcode)
-                                            showCenterLine = true
                                             val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                                 vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
@@ -444,21 +439,51 @@ fun ScannerScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     var flashlightOn by remember { mutableStateOf(false) }
     var isQrMode by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            title = { Text("Error") },
+            text = { Text(errorMessage) },
+            confirmButton = {
+                Button(onClick = { showErrorDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (isCameraActive) {
             CameraScanner(
                 onBarcodeScanned = { barcodeValue ->
-                    if (barcodeValue.startsWith("http://") || barcodeValue.startsWith("https://")) {
-                        val intent = Intent(Intent.ACTION_VIEW, barcodeValue.toUri())
-                        context.startActivity(intent)
-                    } else {
-                        val intent = Intent().apply {
-                            action = "com.example.customkeyboard.SCANNED_CODE"
-                            putExtra("SCANNED_CODE", barcodeValue)
+                    try {
+                        if (barcodeValue.startsWith("http://") || barcodeValue.startsWith("https://")) {
+                            val uri = barcodeValue.toUri()
+                            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+
+                            // Check if there's an activity that can handle this intent
+                            if (intent.resolveActivity(context.packageManager) != null) {
+                                context.startActivity(intent)
+                            } else {
+                                errorMessage = "No browser app found to open the link"
+                                showErrorDialog = true
+                            }
+                        } else {
+                            val intent = Intent().apply {
+                                action = "com.example.customkeyboard.SCANNED_CODE"
+                                putExtra("SCANNED_CODE", barcodeValue)
+                            }
+                            context.sendBroadcast(intent)
+                            onClose()
                         }
-                        context.sendBroadcast(intent)
-                        onClose()
+                    } catch (e: Exception) {
+                        errorMessage = "Error handling barcode: ${e.message}"
+                        showErrorDialog = true
                     }
                 },
                 cameraWidth = cameraWidth,
@@ -466,6 +491,7 @@ fun ScannerScreen(onClose: () -> Unit) {
                 flashlightOn = flashlightOn
             )
         }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
