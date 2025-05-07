@@ -40,7 +40,17 @@ class IMEService : LifecycleInputMethodService(), ViewModelStoreOwner, SavedStat
     private var lastProcessedCode: String? = null
     private var lastProcessedTime: Long = 0
     private val DEBOUNCE_TIME = 2000 // 2 seconds debounce
+    override fun onFinishInputView(finishingInput: Boolean) {
+        super.onFinishInputView(finishingInput)
+        // Close scanner when keyboard is being hidden
+        keyboardView?.closeScanner()
+    }
 
+    override fun onWindowHidden() {
+        super.onWindowHidden()
+        // Close scanner when keyboard window is hidden
+        keyboardView?.closeScanner()
+    }
     // BroadcastReceiver to handle scanned codes
     private val scannedCodeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -183,23 +193,22 @@ object KeyboardStateManager {
     }
 }
 class ComposeKeyboardView(context: Context) : AbstractComposeView(context) {
-    // Remove the companion object and replace with instance-based storage
     enum class KeyboardState {
         QWERTY,
         NUMERIC
     }
 
+    private var showScannerScreen by mutableStateOf(false)
+    private var onScannerCloseCallback: (() -> Unit)? = null
+
     @Composable
     override fun Content() {
-        // Get the last state from persistent storage
         val lastState = remember {
             KeyboardStateManager.getLastKeyboardState(context)
         }
 
         var showQwerty by remember { mutableStateOf(lastState == KeyboardState.QWERTY) }
-        var showScannerScreen by remember { mutableStateOf(false) }
 
-        // Save state whenever it changes
         LaunchedEffect(showQwerty) {
             val newState = if (showQwerty) KeyboardState.QWERTY else KeyboardState.NUMERIC
             KeyboardStateManager.saveLastKeyboardState(context, newState)
@@ -209,30 +218,28 @@ class ComposeKeyboardView(context: Context) : AbstractComposeView(context) {
             ScannerScreen(
                 onClose = {
                     showScannerScreen = false
+                    onScannerCloseCallback?.invoke()
                 }
             )
         } else if (showQwerty) {
             QwertyKeyboard(
-                onSwitchKeyboard = {
-                    showQwerty = false
-                },
-                onOpenScanner = {
-                    showScannerScreen = true
-                }
+                onSwitchKeyboard = { showQwerty = false },
+                onOpenScanner = { showScannerScreen = true }
             )
         } else {
             KeyboardScreen(
-                onSwitchKeyboard = {
-                    showQwerty = true
-                },
-                onOpenScanner = {
-                    showScannerScreen = true
-                }
+                onSwitchKeyboard = { showQwerty = true },
+                onOpenScanner = { showScannerScreen = true }
             )
         }
     }
 
     fun restoreKeyboardState() {
         invalidate()
+    }
+
+    fun closeScanner() {
+        showScannerScreen = false
+        onScannerCloseCallback?.invoke()
     }
 }

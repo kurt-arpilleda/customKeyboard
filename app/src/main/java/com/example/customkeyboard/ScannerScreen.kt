@@ -32,6 +32,7 @@ import androidx.compose.material.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -221,6 +222,14 @@ fun CameraScanner(
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     var showCenterLine by remember { mutableStateOf(false) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    DisposableEffect(Unit) {
+        onDispose {
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                cameraProvider.unbindAll() // Unbind to release camera
+            }, ContextCompat.getMainExecutor(context))
+        }
+    }
 
     // Get the lifecycle owner based on context type
     val lifecycleOwner = when (context) {
