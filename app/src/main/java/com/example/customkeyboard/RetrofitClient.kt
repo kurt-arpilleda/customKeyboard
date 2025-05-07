@@ -91,7 +91,6 @@ object RetrofitClient {
                     }
                 }
             }
-
             throw exception ?: IOException("Unknown error occurred after $MAX_RETRIES attempts")
         }
     }
