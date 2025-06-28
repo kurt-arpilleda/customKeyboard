@@ -5,7 +5,7 @@ import retrofit2.http.GET
 
 interface ApiService {
     // Update APK
-    @GET("V4/Others/Kurt/LatestVersionAPK/CustomKeyboard/output-metadata.json")
+    @GET("V4/Others/Kurt/LatestVersionAPK/ARKeyboard/output-metadata.json")
     fun getAppUpdateDetails(): Call<AppUpdateResponse>
 
 }

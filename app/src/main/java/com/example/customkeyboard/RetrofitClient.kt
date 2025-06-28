@@ -7,23 +7,27 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.math.pow
 
 object RetrofitClient {
     const val PRIMARY_URL = "http://192.168.254.163/"
-    const val FALLBACK_URL =  "http://14.1.67.29/"
+    const val FALLBACK_URL = "http://126.209.7.246/"
+    private const val MAX_RETRIES = 10
+    private const val INITIAL_RETRY_DELAY_MS = 1000L // 1 second
+    private const val REQUEST_TIMEOUT_SECONDS = 2L
 
     // Configuring the logging interceptor
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.NONE
     }
 
-    // Create an OkHttpClient with logging, timeout settings, and fallback logic
+    // Create an OkHttpClient with logging, timeout settings, and retry logic
     private val client = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
         .addInterceptor(RetryInterceptor()) // Adding the retry interceptor
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -35,39 +39,59 @@ object RetrofitClient {
         Retrofit.Builder()
             .baseUrl(PRIMARY_URL) // Start with the primary URL
             .client(client)
-            .addConverterFactory(GsonConverterFactory.create(gson)) // Set custom Gson instance
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(ApiService::class.java)
     }
 
-    // Interceptor to retry requests to a fallback URL if the primary URL is unreachable
+    // Interceptor to retry requests with exponential backoff
     class RetryInterceptor : Interceptor {
         @Throws(IOException::class)
         override fun intercept(chain: Interceptor.Chain): Response {
+            val request = chain.request()
             var response: Response? = null
-            var url = chain.request().url
+            var exception: IOException? = null
 
-            try {
-                response = chain.proceed(chain.request())
-                if (!response.isSuccessful) {
-                    // If the response is not successful, retry with the fallback URL
-                    response = retryWithFallbackUrl(chain, url)
+            // Try both URLs with retries
+            for (attempt in 1..MAX_RETRIES) {
+                for (baseUrl in listOf(PRIMARY_URL, FALLBACK_URL)) {
+                    try {
+                        // Create new request with current base URL
+                        val newUrl = request.url.newBuilder()
+                            .host(baseUrl.substringAfter("://").substringBefore("/"))
+                            .build()
+                        val newRequest = request.newBuilder().url(newUrl).build()
+
+                        response = chain.proceed(newRequest)
+
+                        // If response is successful, return it
+                        if (response.isSuccessful) {
+                            return response
+                        }
+
+                        // Close the response if not successful
+                        response.close()
+                    } catch (e: IOException) {
+                        exception = e
+                        // If it's the last attempt, break and throw the exception
+                        if (attempt == MAX_RETRIES && baseUrl == FALLBACK_URL) {
+                            break
+                        }
+                    }
+
+                    // If not the last attempt, wait with exponential backoff
+                    if (attempt < MAX_RETRIES || baseUrl != FALLBACK_URL) {
+                        try {
+                            val delayMs = INITIAL_RETRY_DELAY_MS * (2.0.pow((attempt - 1).toDouble())).toLong()
+                            Thread.sleep(delayMs)
+                        } catch (e: InterruptedException) {
+                            Thread.currentThread().interrupt()
+                            throw IOException("Interrupted during retry delay", e)
+                        }
+                    }
                 }
-            } catch (e: Exception) {
-                // If there was an exception (e.g., timeout or network failure), retry with the fallback URL
-                response = retryWithFallbackUrl(chain, url)
             }
-
-            return response ?: throw IOException("Network request failed.")
-        }
-
-        // Function to retry with the fallback URL
-        private fun retryWithFallbackUrl(chain: Interceptor.Chain, url: HttpUrl): Response {
-            val newUrl = url.newBuilder()
-                .host(FALLBACK_URL.substringAfter("://").substringBefore("/"))
-                .build()
-            val newRequest = chain.request().newBuilder().url(newUrl).build()
-            return chain.proceed(newRequest)
+            throw exception ?: IOException("Unknown error occurred after $MAX_RETRIES attempts")
         }
     }
 }

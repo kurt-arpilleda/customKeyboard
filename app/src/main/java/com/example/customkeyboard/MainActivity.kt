@@ -1,26 +1,72 @@
 package com.example.customkeyboard
 
+import android.Manifest
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Bundle
 import android.provider.Settings
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.Surface
+import androidx.compose.material.Text
+import androidx.compose.material.TopAppBar
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.customkeyboard.ui.theme.CustomKeyboardTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,31 +75,61 @@ import splitties.systemservices.inputMethodManager
 
 class MainActivity : AppCompatActivity() {
     private lateinit var appUpdateService: AppUpdateService
-    private lateinit var connectivityReceiver: NetworkUtils.ConnectivityReceiver // Correct type
+    private lateinit var connectivityReceiver: NetworkUtils.ConnectivityReceiver
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
+
+    // Camera permission launcher
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        // No dialog needed, silently accept the result
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         appUpdateService = AppUpdateService(this)
         checkForUpdates()
-        connectivityReceiver = NetworkUtils.ConnectivityReceiver { // Initialize with lambda
+
+        connectivityReceiver = NetworkUtils.ConnectivityReceiver {
             checkForUpdates()
         }
         val filter = IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
         registerReceiver(connectivityReceiver, filter)
 
         setContent {
+            val navController = rememberNavController()
+
             CustomKeyboardTheme {
                 Surface(color = MaterialTheme.colors.background) {
-                    Column(Modifier.fillMaxSize()) {
-                        TopAppBarContent()
-                        MainContent()
+                    NavHost(navController = navController, startDestination = "mainScreen") {
+                        composable("mainScreen") { MainScreen(navController) }
+                        composable("versionScreen") { VersionScreen(navController) }
                     }
                 }
             }
         }
+
+        // Directly request camera permission on startup
+        requestCameraPermission()
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Check camera permission when activity resumes
+        requestCameraPermission()
+    }
+
+    private fun requestCameraPermission() {
+        // If permission is not granted, directly request it
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.CAMERA
+            ) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(connectivityReceiver)
@@ -61,7 +137,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkForUpdates() {
         coroutineScope.launch {
-            if (NetworkUtils.isNetworkAvailable(this@MainActivity)) { // Use the utility function
+            if (NetworkUtils.isNetworkAvailable(this@MainActivity)) {
                 appUpdateService.checkForAppUpdate()
             }
         }
@@ -69,18 +145,45 @@ class MainActivity : AppCompatActivity() {
 }
 
 @Composable
-fun TopAppBarContent() {
+fun MainScreen(navController: NavController) {
+    Column(Modifier.fillMaxSize()) {
+        TopAppBarContent(navController)
+        MainContent()
+    }
+}
+
+@Composable
+fun TopAppBarContent(navController: NavController) {
+    val context = LocalContext.current
+    val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+    val versionName = packageInfo.versionName
     TopAppBar(
         title = {
-            Text(
-                text = "Custom Keyboard",
-                style = TextStyle(
-                    fontSize = 24.sp
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "ARKeyboard",
+                    style = TextStyle(
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colors.onPrimary
+                    )
                 )
-            )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "v$versionName",
+                    style = MaterialTheme.typography.body2.copy(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Normal,
+                        textDecoration = TextDecoration.Underline
+                    ),
+                    modifier = Modifier.clickable {
+                        navController.navigate("versionScreen")
+                    }
+                )
+            }
         },
-        backgroundColor = Color.Transparent, // Removed the background
-        elevation = 0.dp // Remove shadow/elevation as well
+        backgroundColor = MaterialTheme.colors.primary,
+        elevation = 8.dp
     )
 }
 
@@ -94,22 +197,24 @@ fun MainContent() {
             .fillMaxSize()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top) // Adjust spacing and alignment
+        verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.Top)
     ) {
-        Spacer(modifier = Modifier.height(80.dp)) // Add space to shift the content down slightly
+        Spacer(modifier = Modifier.height(80.dp))
 
-        TextField(
+        OutlinedTextField(
             value = text,
             onValueChange = setValue,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colors.surface, shape = RoundedCornerShape(12.dp)),
             placeholder = {
                 Text(
-                    text = "Try here",
-                    style = TextStyle(fontSize = 16.sp) // Set the same size as input text
+                    text = "Type here...",
+                    style = TextStyle(fontSize = 16.sp, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
                 )
             },
-            textStyle = TextStyle(fontSize = 16.sp), // Set input text size to 16.sp
-            singleLine = true // Ensure the input does not expand vertically
+            textStyle = TextStyle(fontSize = 16.sp, color = MaterialTheme.colors.onSurface),
+            singleLine = true
         )
 
         Button(
@@ -118,10 +223,14 @@ fun MainContent() {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
-            shape = RoundedCornerShape(50)
+                .height(50.dp),
+            colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text(text = "Enable Custom Keyboard")
+            Text(
+                text = "Enable ARKeyboard",
+                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            )
         }
 
         Button(
@@ -130,12 +239,95 @@ fun MainContent() {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
-            shape = RoundedCornerShape(50)
+                .height(50.dp),
+            colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.secondaryVariant),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text(text = "Select Custom Keyboard")
+            Text(
+                text = "Select ARKeyboard",
+                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun VersionScreen(navController: NavController) {
+    var selectedLanguage by remember { mutableStateOf("en") }
+    val context = LocalContext.current
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val versionHistory = if (selectedLanguage == "en") {
+        context.resources.getStringArray(R.array.version_history_en)
+    } else {
+        context.resources.getStringArray(R.array.version_history_jp)
+    }
 
+    val appIcon = painterResource(id = R.drawable.arkeyboardicon)
+
+    Scaffold(
+        topBar = {
+            androidx.compose.material3.TopAppBar(
+                title = { androidx.compose.material3.Text("Version History", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { backDispatcher?.onBackPressed() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { selectedLanguage = "en" }) {
+                        Image(
+                            painter = painterResource(id = R.drawable.usaflag),
+                            contentDescription = "English",
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    IconButton(onClick = { selectedLanguage = "jp" }) {
+                        Image(
+                            painter = painterResource(id = R.drawable.japanflag),
+                            contentDescription = "Japanese",
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = appIcon,
+                contentDescription = "App Icon Background",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .align(Alignment.Center),
+                contentScale = ContentScale.Fit,
+                alpha = 0.7f
+            )
+
+            LazyColumn(
+                contentPadding = padding,
+                modifier = Modifier.padding(16.dp)
+            ) {
+                items(versionHistory) { version ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            androidx.compose.material3.Text(
+                                text = version,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,3 +1,23 @@
 <resources>
-    <string name="app_name">Custom Keyboard</string>
+    <string name="app_name">ARKeyboard</string>
+
+    <string-array name="version_history_en">
+        <item>4.5 - Restore the Keyboard Switch Option.</item>
+        <item>4.4 - Created a QWERTY keyboard and added functionality to toggle between two keyboards.</item>
+        <item>4.3 - Automatically show camera permission.</item>
+        <item>4.2 - Automatic updates without user interaction.</item>
+        <item>4.1 - Added camera permission to the main app.</item>
+        <item>4.0 - Added a dashboard screen to display the app’s version history.</item>
+        <item>1.0 – 3.9 - Initial release with core features, including a keyboard screen and a barcode scanner. Tested and integrated various Barcode Scanner APIs.</item>
+    </string-array>
+    <string-array name="version_history_jp">
+        <item>4.5 - キーボード切り替えオプションを復元する。</item>
+        <item>4.4 - QWERTYキーボードを作成し、2つのキーボード間で切り替える機能を追加しました。</item>
+        <item>4.3 - カメラの許可を自動的に表示する。</item>
+        <item>4.2 - ユーザー操作なしで自動更新を実行。</item>
+        <item>4.1 - メインアプリにカメラの許可を追加。</item>
+        <item>4.0 - アプリのバージョン履歴を表示するダッシュボード画面を追加しました。</item>
+        <item>1.0 – 3.9 - 初期リリースでは、キーボード画面とバーコードスキャナーを含む基本機能を搭載しました。さまざまなバーコードスキャナーAPIをテストして統合しました。</item>
+    </string-array>
+
 </resources>

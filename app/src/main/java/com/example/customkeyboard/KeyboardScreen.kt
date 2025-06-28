@@ -1,18 +1,25 @@
 package com.example.customkeyboard
 
+import android.app.Activity
+import android.content.Intent
 import android.view.KeyEvent
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -35,71 +43,123 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun KeyboardScreen() {
+fun KeyboardScreen(
+    onSwitchKeyboard: () -> Unit,
+    onOpenScanner: () -> Unit
+) {
     val alphabeticKeysMatrix = arrayOf(
         arrayOf("DEL", "", "BS", "7", "8", "9"),
         arrayOf("B", "H", "M", "4", "5", "6"),
         arrayOf("P", "R", "S", "1", "2", "3"),
         arrayOf("-", "", "", "0", "Enter")
     )
+    val context = LocalContext.current
     val currentKeyPressed = remember { mutableStateOf("") }
+    val showScannerScreen = remember { mutableStateOf(false) } // Flag to show ScannerScreen
 
-    Column(
-        modifier = Modifier
-            .background(Color(0xFFA2ABBA))
-            .fillMaxWidth()
-            .padding(5.dp),
-    ) {
-        alphabeticKeysMatrix.forEachIndexed { rowIndex, row ->
-            FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 60.dp) {
-                Row(Modifier) {
-                    row.forEachIndexed { index, key ->
-                        if (key.isNotEmpty()) {
-                            when (key) {
-                                "DEL" -> {
-                                    RemoveAll(modifier = Modifier.weight(1f))
+    if (showScannerScreen.value) {
+        ScannerScreen(
+            onClose = { showScannerScreen.value = false }
+        )
+    } else {
+        Column(
+            modifier = Modifier
+                .background(Color(0xFFA2ABBA))
+                .fillMaxWidth(),
+        ) {
+            // Add a row for the top-left and top-right corner icons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = {
+                        val imm = context.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showInputMethodPicker()
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.changekeyboard),
+                        contentDescription = "Keyboard Picker Icon",
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = { onSwitchKeyboard() }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.switchleft),
+                        contentDescription = "Switch Keyboard Left",
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = { onOpenScanner() }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.barcodescan),
+                        contentDescription = "QR Code Scanner Icon",
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
+            }
+
+            // The rest of the keyboard layout
+            alphabeticKeysMatrix.forEachIndexed { rowIndex, row ->
+                FixedHeightBox(modifier = Modifier.fillMaxWidth(), height = 56.dp) {
+                    Row(Modifier) {
+                        row.forEachIndexed { index, key ->
+                            if (key.isNotEmpty()) {
+                                when (key) {
+                                    "DEL" -> {
+                                        RemoveAll(modifier = Modifier.weight(1f))
+                                    }
+                                    "BS" -> {
+                                        RemoveKey(modifier = Modifier.weight(1f))
+                                    }
+                                    "B", "H", "M", "P", "R", "S" -> {
+                                        KeyboardKey(
+                                            keyboardKey = key,
+                                            modifier = Modifier.weight(1f),
+                                            backgroundColor = Color(0xFFCCE7EB),
+                                            onClick = {
+                                                currentKeyPressed.value = key
+                                            }
+                                        )
+                                    }
+                                    " " -> {
+                                        KeyboardKey(
+                                            keyboardKey = key,
+                                            modifier = Modifier.weight(3.5f),
+                                            onClick = {
+                                                currentKeyPressed.value = key
+                                            }
+                                        )
+                                    }
+                                    "Enter" -> {
+                                        EnterKey(modifier = Modifier.weight(2f))
+                                    }
+                                    else -> {
+                                        KeyboardKey(
+                                            keyboardKey = key,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = {
+                                                currentKeyPressed.value = key
+                                            }
+                                        )
+                                    }
                                 }
-                                "BS" -> {
-                                    RemoveKey(modifier = Modifier.weight(1f))
-                                }
-                                "B", "H", "M", "P", "R", "S" -> {
-                                    KeyboardKey(
-                                        keyboardKey = key,
-                                        modifier = Modifier.weight(1f),
-                                        backgroundColor = Color(0xFFCCE7EB),
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
-                                    )
-                                }
-                                " " -> {
-                                    KeyboardKey(
-                                        keyboardKey = key,
-                                        modifier = Modifier.weight(3.5f),
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
-                                    )
-                                }
-                                "Enter" -> {
-                                    EnterKey(modifier = Modifier.weight(2f))
-                                }
-                                else -> {
-                                    KeyboardKey(
-                                        keyboardKey = key,
-                                        modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            currentKeyPressed.value = key
-                                        }
-                                    )
-                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .alpha(0f)
+                                )
                             }
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .alpha(0f)
-                            )
                         }
                     }
                 }
@@ -125,20 +185,21 @@ fun RemoveAll(modifier: Modifier) {
                 .clip(RoundedCornerShape(4.dp))
                 .clickable {
                     val inputConnection = (ctx as IMEService).currentInputConnection
-                    inputConnection.deleteSurroundingText(10000, 0) // A large number to ensure deletion of all text
+                    inputConnection.deleteSurroundingText(
+                        10000,
+                        0
+                    ) // A large number to ensure deletion of all text
                 }
                 .background(Color(0xFFFBECDD))
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 20.dp,
-                    bottom = 19.dp
+                    top = 18.dp,
+                    bottom = 17.dp
                 )
         )
     }
 }
-
-
 @Composable
 fun KeyboardKey(
     keyboardKey: String,
@@ -173,8 +234,8 @@ fun KeyboardKey(
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 20.dp,
-                    bottom = 19.dp
+                    top = 19.dp,
+                    bottom = 18.dp
                 ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
@@ -190,8 +251,8 @@ fun KeyboardKey(
                     .padding(
                         start = 16.dp,
                         end = 16.dp,
-                        top = 16.dp,
-                        bottom = 30.dp
+                        top = 15.dp,
+                        bottom = 28.dp
                     ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
@@ -241,10 +302,16 @@ fun RemoveKey(modifier: Modifier) {
                     val inputConnection = (ctx as IMEService).currentInputConnection
 
                     // Check if there is any selected text and delete it
-                    if (inputConnection.getSelectedText(0) != null && inputConnection.getSelectedText(0) != "") {
+                    if (inputConnection.getSelectedText(0) != null && inputConnection.getSelectedText(
+                            0
+                        ) != ""
+                    ) {
                         inputConnection.commitText("", 1) // Clear selected text
                     } else {
-                        inputConnection.deleteSurroundingText(1, 0) // Remove one character around the cursor
+                        inputConnection.deleteSurroundingText(
+                            1,
+                            0
+                        ) // Remove one character around the cursor
                     }
                 }
                 .background(
@@ -254,8 +321,8 @@ fun RemoveKey(modifier: Modifier) {
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 20.dp,
-                    bottom = 19.dp
+                    top = 19.dp,
+                    bottom = 18.dp
                 )
         )
     }
@@ -282,8 +349,18 @@ fun EnterKey(modifier: Modifier) {
 
                     // Simulate an enter key event (KEYCODE_ENTER)
                     val inputConnection = (ctx as IMEService).currentInputConnection
-                    inputConnection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
-                    inputConnection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+                    inputConnection.sendKeyEvent(
+                        KeyEvent(
+                            KeyEvent.ACTION_DOWN,
+                            KeyEvent.KEYCODE_ENTER
+                        )
+                    )
+                    inputConnection.sendKeyEvent(
+                        KeyEvent(
+                            KeyEvent.ACTION_UP,
+                            KeyEvent.KEYCODE_ENTER
+                        )
+                    )
                 }
                 .background(
                     if (isPressed.value) Color(0xFF99E6C8) else Color(0xFFC0FAE6) // Feedback color
@@ -295,8 +372,8 @@ fun EnterKey(modifier: Modifier) {
                 modifier = Modifier.padding(
                     start = 10.dp,
                     end = 12.dp,
-                    top = 20.dp,
-                    bottom = 19.dp
+                    top = 19.dp,
+                    bottom = 18.dp
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis // Add ellipsis if text overflows
@@ -319,5 +396,3 @@ fun FixedHeightBox(modifier: Modifier, height: Dp, content: @Composable () -> Un
         }
     }
 }
-
-
