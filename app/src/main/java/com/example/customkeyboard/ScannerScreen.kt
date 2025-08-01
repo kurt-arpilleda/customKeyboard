@@ -91,25 +91,20 @@ class BarcodeAnalyzer(
                     val rotatedImage = RotatedImage(luminanceData, imageProxy.width, imageProxy.height)
                     rotateImageArray(rotatedImage, imageProxy.imageInfo.rotationDegrees)
 
-                    // Ensure the frame fits within the image bounds
                     val frameWidthAdjusted = minOf(frameWidth, rotatedImage.width)
                     val frameHeightAdjusted = minOf(frameHeight, rotatedImage.height)
 
-                    // Calculate the center of the image to position the frame
                     val centerX = maxOf(0, (rotatedImage.width - frameWidthAdjusted) / 2)
                     val centerY = maxOf(0, (rotatedImage.height - frameHeightAdjusted) / 2)
 
-                    // Ensure we don't exceed the image boundaries
                     val rightEdge = centerX + frameWidthAdjusted
                     val bottomEdge = centerY + frameHeightAdjusted
 
                     if (rightEdge > rotatedImage.width || bottomEdge > rotatedImage.height) {
-                        // Skip this frame if dimensions don't fit
                         imageProxy.close()
                         return
                     }
 
-                    // Only scan within the frame area
                     val source = PlanarYUVLuminanceSource(
                         rotatedImage.byteArray,
                         rotatedImage.width,
@@ -127,21 +122,18 @@ class BarcodeAnalyzer(
                         val result = reader.decodeWithState(binaryBitmap)
 
                         synchronized(lock) {
-                            // Add result to queue
                             scanQueue.add(result.text)
 
                             if (scanQueue.size > threshold) {
                                 scanQueue.removeAt(0)
                             }
 
-                            // If we have reached the threshold and all entries are equal, trigger scan
                             if (scanQueue.size == threshold && scanQueue.all { it == scanQueue[0] }) {
                                 onBarcodeScanned(result.text)
                                 scanQueue.clear()
                             }
                         }
                     } catch (e: NotFoundException) {
-                        // No barcode found
                     } finally {
                         reader.reset()
                     }
@@ -221,19 +213,17 @@ fun CameraScanner(
         onDispose {
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
-                cameraProvider.unbindAll() // Unbind to release camera
+                cameraProvider.unbindAll()
             }, ContextCompat.getMainExecutor(context))
         }
     }
 
-    // Get the lifecycle owner based on context type
     val lifecycleOwner = when (context) {
         is ComponentActivity -> context
         is LifecycleInputMethodService -> IMEServiceLifecycleOwner(context)
         else -> null
     }
 
-    // Convert Dp to pixels for frame dimensions
     val displayMetrics = context.resources.displayMetrics
     val frameWidthPx = (cameraWidth.value * displayMetrics.density).toInt()
     val frameHeightPx = (cameraHeight.value * displayMetrics.density).toInt()
@@ -254,7 +244,6 @@ fun CameraScanner(
         }
     }
 
-    // Reset center line when frame dimensions change
     LaunchedEffect(cameraWidth, cameraHeight) {
         showCenterLine = false
     }
@@ -283,7 +272,7 @@ fun CameraScanner(
                                     cameraExecutor,
                                     BarcodeAnalyzer(
                                         onBarcodeScanned = { barcode ->
-                                            showCenterLine = true  // Move this UP so it always happens when barcode is detected
+                                            showCenterLine = true
                                             onBarcodeScanned(barcode)
                                             val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -300,10 +289,8 @@ fun CameraScanner(
                             }
 
                         try {
-                            // Clear all previous bindings
                             cameraProvider.unbindAll()
 
-                            // Check if the lifecycleOwner is available before binding
                             if (lifecycleOwner != null) {
                                 val camera = cameraProvider.bindToLifecycle(
                                     lifecycleOwner,
@@ -312,7 +299,6 @@ fun CameraScanner(
                                     imageAnalyzer
                                 )
 
-                                // Auto-focus on the center of the preview
                                 previewView.post {
                                     val meterFactory = previewView.meteringPointFactory
                                     val centerX = previewView.width / 2f
@@ -323,7 +309,6 @@ fun CameraScanner(
                                     camera.cameraControl.startFocusAndMetering(action)
                                 }
 
-                                // Set torch state
                                 camera.cameraControl.enableTorch(flashlightOn)
                             }
                         } catch (e: Exception) {
@@ -348,7 +333,6 @@ fun CameraScanner(
                 val centerX = (size.width - frameWidthPx) / 2
                 val centerY = (size.height - frameHeightPx) / 2
 
-                // Draw the scanning frame (transparent area)
                 drawRect(
                     color = Color.Transparent,
                     topLeft = Offset(centerX, centerY),
@@ -356,12 +340,10 @@ fun CameraScanner(
                     blendMode = BlendMode.Clear
                 )
 
-                // Draw frame border
                 val borderColor = Color.White
                 val borderWidth = 4f
                 val cornerLength = 40f
 
-                // Top-left corner
                 drawLine(
                     color = borderColor,
                     start = Offset(centerX, centerY),
@@ -375,7 +357,6 @@ fun CameraScanner(
                     strokeWidth = borderWidth
                 )
 
-                // Top-right corner
                 drawLine(
                     color = borderColor,
                     start = Offset(centerX + frameWidthPx, centerY),
@@ -389,7 +370,6 @@ fun CameraScanner(
                     strokeWidth = borderWidth
                 )
 
-                // Bottom-left corner
                 drawLine(
                     color = borderColor,
                     start = Offset(centerX, centerY + frameHeightPx),
@@ -403,7 +383,6 @@ fun CameraScanner(
                     strokeWidth = borderWidth
                 )
 
-                // Bottom-right corner
                 drawLine(
                     color = borderColor,
                     start = Offset(centerX + frameWidthPx, centerY + frameHeightPx),
@@ -435,10 +414,9 @@ fun CameraScanner(
 fun ScannerScreen(onClose: () -> Unit) {
     var isCameraActive by remember { mutableStateOf(true) }
     var cameraWidth by remember { mutableStateOf(330.dp) }
-    var cameraHeight by remember { mutableStateOf(80.dp) }
+    var cameraHeight by remember { mutableStateOf(260.dp) }
     val context = LocalContext.current
     var flashlightOn by remember { mutableStateOf(false) }
-    var isQrMode by remember { mutableStateOf(false) }
     var showErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
@@ -466,7 +444,6 @@ fun ScannerScreen(onClose: () -> Unit) {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             }
 
-                            // Check if there's an activity that can handle this intent
                             if (intent.resolveActivity(context.packageManager) != null) {
                                 context.startActivity(intent)
                             } else {
@@ -512,7 +489,6 @@ fun ScannerScreen(onClose: () -> Unit) {
             }
         }
 
-        // Foreground UI
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -528,7 +504,7 @@ fun ScannerScreen(onClose: () -> Unit) {
                     tint = Color.White
                 )
                 Text(
-                    text = if (isQrMode) "Scan QR Code" else "Scan Barcode",
+                    text = "Scanner",
                     color = Color.White,
                     fontSize = 20.sp,
                     modifier = Modifier.padding(start = 8.dp)
@@ -536,10 +512,7 @@ fun ScannerScreen(onClose: () -> Unit) {
             }
 
             Text(
-                text = if (isQrMode)
-                    "Place the QR code inside the square frame.\nEnsure it is centered and not blurry."
-                else
-                    "Place the barcode inside the rectangular frame.\nEnsure it is centered and not blurry.",
+                text = "Place the barcode or QR code inside the frame.\nEnsure it is centered and not blurry.",
                 color = Color.White,
                 fontSize = 12.sp
             )
@@ -553,32 +526,6 @@ fun ScannerScreen(onClose: () -> Unit) {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .border(2.dp, Color.White, RoundedCornerShape(8.dp))
-                        .padding(4.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(id = if (isQrMode) R.drawable.qr_icon else R.drawable.barcode_icon),
-                        contentDescription = if (isQrMode) "Switch to Barcode Mode" else "Switch to QR Code Mode",
-                        tint = Color.White,
-                        modifier = Modifier
-                            .clickable {
-                                isQrMode = !isQrMode
-                                if (isQrMode) {
-                                    cameraWidth = 250.dp
-                                    cameraHeight = 250.dp
-                                } else {
-                                    cameraWidth = 330.dp
-                                    cameraHeight = 80.dp
-                                }
-                            }
-                            .size(40.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
                 Box(
                     modifier = Modifier
                         .border(2.dp, Color.White, RoundedCornerShape(8.dp))
