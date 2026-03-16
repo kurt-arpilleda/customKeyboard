@@ -10,7 +10,6 @@ import androidx.activity.ComponentActivity
 import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
-import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -68,18 +67,23 @@ class IMEServiceLifecycleOwner(private val imeService: LifecycleInputMethodServi
 
 class BarcodeAnalyzer(
     private val onBarcodeScanned: (String) -> Unit,
-    private val threshold: Int = 3,
+    private val threshold: Int = 2,
     private val frameWidth: Int,
     private val frameHeight: Int
 ) : ImageAnalysis.Analyzer {
 
     private val reader = MultiFormatReader()
     private val lock = Any()
-
     private val scanQueue: MutableList<String> = mutableListOf()
+    private var isProcessing = false
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
+        if (isProcessing) {
+            imageProxy.close()
+            return
+        }
+
         try {
             imageProxy.image?.let {
                 if ((it.format == ImageFormat.YUV_420_888
@@ -129,6 +133,7 @@ class BarcodeAnalyzer(
                             }
 
                             if (scanQueue.size == threshold && scanQueue.all { it == scanQueue[0] }) {
+                                isProcessing = true
                                 onBarcodeScanned(result.text)
                                 scanQueue.clear()
                             }
@@ -143,6 +148,13 @@ class BarcodeAnalyzer(
             e.printStackTrace()
         } finally {
             imageProxy.close()
+        }
+    }
+
+    fun resetProcessing() {
+        synchronized(lock) {
+            isProcessing = false
+            scanQueue.clear()
         }
     }
 
@@ -209,6 +221,25 @@ fun CameraScanner(
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     var showCenterLine by remember { mutableStateOf(false) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val barcodeAnalyzer = remember {
+        BarcodeAnalyzer(
+            onBarcodeScanned = { barcode ->
+                showCenterLine = true
+                onBarcodeScanned(barcode)
+                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(100)
+                }
+            },
+            threshold = 2,
+            frameWidth = (cameraWidth.value * context.resources.displayMetrics.density).toInt(),
+            frameHeight = (cameraHeight.value * context.resources.displayMetrics.density).toInt()
+        )
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             cameraProviderFuture.addListener({
@@ -223,10 +254,6 @@ fun CameraScanner(
         is LifecycleInputMethodService -> IMEServiceLifecycleOwner(context)
         else -> null
     }
-
-    val displayMetrics = context.resources.displayMetrics
-    val frameWidthPx = (cameraWidth.value * displayMetrics.density).toInt()
-    val frameHeightPx = (cameraHeight.value * displayMetrics.density).toInt()
 
     LaunchedEffect(flashlightOn) {
         if (lifecycleOwner != null) {
@@ -268,24 +295,7 @@ fun CameraScanner(
                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                             .build()
                             .also {
-                                it.setAnalyzer(
-                                    cameraExecutor,
-                                    BarcodeAnalyzer(
-                                        onBarcodeScanned = { barcode ->
-                                            showCenterLine = true
-                                            onBarcodeScanned(barcode)
-                                            val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
-                                            } else {
-                                                @Suppress("DEPRECATION")
-                                                vibrator.vibrate(100)
-                                            }
-                                        },
-                                        frameWidth = frameWidthPx,
-                                        frameHeight = frameHeightPx
-                                    )
-                                )
+                                it.setAnalyzer(cameraExecutor, barcodeAnalyzer)
                             }
 
                         try {
@@ -298,16 +308,6 @@ fun CameraScanner(
                                     preview,
                                     imageAnalyzer
                                 )
-
-                                previewView.post {
-                                    val meterFactory = previewView.meteringPointFactory
-                                    val centerX = previewView.width / 2f
-                                    val centerY = previewView.height / 2f
-                                    val centerMeteringPoint = meterFactory.createPoint(centerX, centerY)
-
-                                    val action = FocusMeteringAction.Builder(centerMeteringPoint).build()
-                                    camera.cameraControl.startFocusAndMetering(action)
-                                }
 
                                 camera.cameraControl.enableTorch(flashlightOn)
                             }
